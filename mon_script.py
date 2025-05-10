@@ -41,11 +41,9 @@ def cut_sheet(sheet, frame_width=64, frame_height=64):
             frames.append(frame)
     return frames
 
-# Display
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption(TITLE)
 
-# Load assets
 bg1 = load_img('background1.png', (WIDTH, HEIGHT))
 bg2 = load_img('background2.png', (WIDTH, HEIGHT))
 khezu_img = load_img('KhezuL.png', (110, 92))
@@ -92,22 +90,21 @@ class Player(pygame.sprite.Sprite):
         self.velocity = pygame.Vector2(0, 0)
         self.speed = 7
         self.jump_power = -14
-        self.on_ground = False
+        self.on_ground = True
     def update(self, keys):
         if keys[pygame.K_LEFT]:
             self.rect.x -= self.speed
         if keys[pygame.K_RIGHT]:
             self.rect.x += self.speed
         self.velocity.y += 0.75
-        if self.rect.bottom < HEIGHT:
-            self.rect.y += int(self.velocity.y)
-            self.on_ground = False
-        else:
-            self.rect.bottom = HEIGHT
-            self.velocity.y = 0
-            self.on_ground = True
         if keys[pygame.K_SPACE] and self.on_ground:
             self.velocity.y = self.jump_power
+            self.on_ground = False
+        self.rect.y += int(self.velocity.y)
+        if self.rect.bottom >= HEIGHT:
+            self.rect.bottom = HEIGHT
+            self.on_ground = True
+            self.velocity.y = 0
         self.rect.left = max(0, self.rect.left)
         self.rect.right = min(WIDTH, self.rect.right)
 
@@ -185,12 +182,10 @@ def main():
         clock.tick(FPS)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit(); sys.exit()
+                pygame.quit(); # NENON PAS BIEN : sys.exit()
         keys = pygame.key.get_pressed()
-        # Background
         screen.blit(backgs[bg_idx], (0,0))
         draw_birthday_banner()
-        # Sprites
         player.update(keys)
         cakes.update()
         monsters.update()
@@ -201,7 +196,6 @@ def main():
         monsters.draw(screen)
         fakemons.draw(screen)
         screen.blit(player.image, player.rect)
-        # Effects
         for ef in list(effects):
             ef.update()
             if ef.done:
@@ -209,23 +203,21 @@ def main():
             else:
                 screen.blit(ef.image, ef.rect)
 
-        # Collision player/cake
         got_cake = pygame.sprite.spritecollide(player, cakes, True)
         if got_cake:
             for c in got_cake:
                 play_sound(snd_collect, 0.32)
                 effects.add(Effect(c.rect.centerx, c.rect.centery))
                 cake_collected += 1
-        # Monster spawn logic
+
         if random.random() < 0.018:
             monsters.add(Monster())
         if random.random() < 0.01:
             fakemons.add(FakeMonster())
 
-        # Draw score
         scoretxt = FONT_SMALL.render(f"Gâteaux: {cake_collected}/{10}", True, (220,235,230))
         screen.blit(scoretxt, (24,18))
-        # Game over?
+
         hit_monster = pygame.sprite.spritecollide(player, monsters, False)
         elapsed = (pygame.time.get_ticks() - start_ticks) / 1000
         if hit_monster:
@@ -236,19 +228,19 @@ def main():
             win = True
             play_music(win_music, 0.52, loop=0)
             break
-        # Animate BG
+
         if int(elapsed) % 7 == 0:
             bg_idx = 1
         else:
             bg_idx = 0
-        # Confetti effect if win soon
+
         if cake_collected >= 8 and confetti_timer % 6 == 0:
             x = random.randint(32, WIDTH-32)
             y = random.randint(32, HEIGHT-32)
             screen.blit(confetti, (x, y))
         confetti_timer += 1
         pygame.display.flip()
-    # End of game
+
     pygame.mixer.music.stop()
     show_credits(win)
 
