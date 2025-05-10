@@ -153,7 +153,7 @@ def start_screen():
         draw_text(WIN, "Objectif : reproduisez l'oeuvre!", 32, WIDTH//2, HEIGHT-190, (210,255,220))
         draw_text(WIN, "Art par ansimuz, BDragon1727", 22, WIDTH//2, HEIGHT-40, (120,170,255))
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            if event.type == pygame.QUIT: pygame.quit(); # NENON PAS BIEN : sys.exit()
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                 play_sound("schling2.mp3")
                 return art
@@ -180,10 +180,10 @@ def end_screen(win, score, maxscore):
         if blink:
             draw_text(WIN, "ESPACE = recommencer   |   ECHAP = quitter", 26, WIDTH//2, HEIGHT-80, (120,200,255))
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            if event.type == pygame.QUIT: pygame.quit(); # NENON PAS BIEN : sys.exit()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE: return True
-                if event.key == pygame.K_ESCAPE: pygame.quit(); sys.exit()
+                if event.key == pygame.K_ESCAPE: pygame.quit(); # NENON PAS BIEN : sys.exit()
         timer += 1
         if timer % 30 == 0: blink = not blink
         pygame.display.flip()
@@ -237,7 +237,7 @@ def main_game(target):
         if shape_icon: WIN.blit(shape_icon, (64,18))
 
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            if event.type == pygame.QUIT: pygame.quit(); # NENON PAS BIEN : sys.exit()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_1: selected_shape = "circle"
                 if event.key == pygame.K_2: selected_shape = "rect"
@@ -277,6 +277,7 @@ def main_game(target):
     player = list(player_shapes)
     maxscore = len(target.shapes)
     score = compare_art(player, target)
+    print(f"Khezu > Score final: {score}/{maxscore}")
     return (score, maxscore)
 
 def main():
