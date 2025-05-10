@@ -1,272 +1,291 @@
 import pygame
+import sys
 import random
-import threading
-import socket
-import time
 import os
 
-WIDTH, HEIGHT = 900, 540
-FPS = 60
-BG_COLOR = (24, 17, 28)
-IMAGE_DIR = r"C:\Users\Malkai\Desktop\Streaming\Images"
-SPRITE_SIZE = 64
-
-IRC_SERVER = "irc.chat.twitch.tv"
-IRC_PORT = 6667
-NICK = "justinfan1337"
-OAUTH = "oauth:1337"  # Pseudo guest pour lecture
-CHANNEL = "#votretwitch" # À changer pour votre channel
-
 pygame.init()
-pygame.font.init()
 pygame.mixer.init()
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Twitch Wheel of Fate")
-clock = pygame.time.Clock()
-font = pygame.font.SysFont("Arial", 32)
-bigfont = pygame.font.SysFont("Arial Black", 52)
-tinyfont = pygame.font.SysFont("Arial", 22, bold=True)
+WIDTH, HEIGHT = 960, 720
+FPS = 60
 
-BACKGROUND = pygame.image.load(os.path.join(IMAGE_DIR, "cyberpunk-street.png")).convert()
-BACKGROUND = pygame.transform.smoothscale(BACKGROUND, (WIDTH, HEIGHT))
-WHEEL = pygame.image.load(os.path.join(IMAGE_DIR, "BLcheers.gif"))
-WHEEL = pygame.transform.smoothscale(WHEEL, (220, 220))
-KHEZU = pygame.image.load(os.path.join(IMAGE_DIR, "KhezuL.png"))
-KHEZU = pygame.transform.smoothscale(KHEZU, (130, 130))
+WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Formes et Oeuvres - Khezu Edition")
+CLOCK = pygame.time.Clock()
+BASE_PATH = r"C:\Users\Malkai\Desktop\Streaming\Images"
 
-ANIM_FRAMESHEET = pygame.image.load(os.path.join(IMAGE_DIR, "effetanim15.png"))
+def load_img(name, alpha=True):
+    surf = pygame.image.load(os.path.join(BASE_PATH, name))
+    return surf.convert_alpha() if alpha else surf.convert()
 
-if os.path.exists(os.path.join(IMAGE_DIR, "schling.mp3")):
-    schling_fx = pygame.mixer.Sound(os.path.join(IMAGE_DIR, "schling.mp3"))
-    schling_fx.set_volume(0.5)
-else:
-    schling_fx = None
-if os.path.exists(os.path.join(IMAGE_DIR, "Piano relaxant.mp3")):
-    pygame.mixer.music.load(os.path.join(IMAGE_DIR, "Piano relaxant.mp3"))
-    pygame.mixer.music.set_volume(0.5)
+def play_music(name, vol=0.5):
+    pygame.mixer.music.load(os.path.join(BASE_PATH, name))
+    pygame.mixer.music.set_volume(vol)
     pygame.mixer.music.play(-1)
-else:
-    pygame.mixer.music.stop()
 
-def get_sheet_anim(sheet):
+def play_sound(name):
+    s = pygame.mixer.Sound(os.path.join(BASE_PATH, name))
+    s.set_volume(0.5)
+    s.play()
+
+def draw_text(surface, text, size, x, y, color=(255,255,255), center=True, fontname=None):
+    font = pygame.font.Font(fontname, size)
+    txt = font.render(text, True, color)
+    rect = txt.get_rect()
+    if center:
+        rect.center = (x, y)
+    else:
+        rect.topleft = (x, y)
+    surface.blit(txt, rect)
+
+def get_random_color():
+    return random.choice([(255, 0, 120), (60, 255, 220), (255, 255, 100), 
+                         (180, 40, 255), (255, 130, 40), (60, 142, 255)])
+
+def sprite_sheet_frames(sheet, frame_w, frame_h):
+    sheet_img = load_img(sheet)
+    sheet_rect = sheet_img.get_rect()
     frames = []
-    w, h = sheet.get_size()
-    for y in range(0, h, SPRITE_SIZE):
-        for x in range(0, w, SPRITE_SIZE):
-            frames.append(sheet.subsurface((x, y, SPRITE_SIZE, SPRITE_SIZE)))
+    for y in range(0, sheet_rect.height, frame_h):
+        for x in range(0, sheet_rect.width, frame_w):
+            frame = pygame.Surface((frame_w, frame_h), pygame.SRCALPHA)
+            frame.blit(sheet_img, (0, 0), pygame.Rect(x, y, frame_w, frame_h))
+            frames.append(frame)
     return frames
 
-ANIM_FRAMES = get_sheet_anim(ANIM_FRAMESHEET)
-
-def irc_thread(pseudos):
-    s = socket.socket()
-    try:
-        s.connect((IRC_SERVER, IRC_PORT))
-        s.send(f"PASS {OAUTH}\r\n".encode('utf-8'))
-        s.send(f"NICK {NICK}\r\n".encode('utf-8'))
-        s.send(f"JOIN {CHANNEL}\r\n".encode('utf-8'))
-        print("Khezu IRC love!")
-        while True:
-            data = s.recv(1024).decode('utf-8')
-            lines = data.split('\r\n')
-            for line in lines:
-                if "PING" in line:
-                    s.send("PONG :tmi.twitch.tv\r\n".encode('utf-8'))
-                if "PRIVMSG" in line:
-                    pseudo = line.split('!', 1)[0][1:]
-                    if pseudo and pseudo not in pseudos:
-                        pseudos.append(pseudo)
-            time.sleep(0.05)
-    except Exception as e:
-        print("Khezu sad: no IRC", e)
-    finally:
-        s.close()
-
-def draw_ban_overlay(target):
-    s = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    s.fill((70,0,0,180))
-    screen.blit(s, (0,0))
-    txt = bigfont.render("BANNI 2m!", True, (200,30,30))
-    screen.blit(txt, (WIDTH//2-txt.get_width()//2, HEIGHT//2-txt.get_height()//2-20))
-    screen.blit(KHEZU, (WIDTH//2-60, HEIGHT//2+60))
-    pseudo = font.render(target, True, (255,200,200))
-    screen.blit(pseudo, (WIDTH//2-pseudo.get_width()//2, HEIGHT//2+40))
-
-def draw_modo_overlay(target):
-    s = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    s.fill((60,80,20,170))
-    screen.blit(s, (0,0))
-    txt = bigfont.render("PROMU MODO!", True, (120,255,120))
-    screen.blit(txt, (WIDTH//2-txt.get_width()//2, HEIGHT//2-txt.get_height()//2-20))
-    pseudo = font.render(target, True, (120,255,120))
-    screen.blit(pseudo, (WIDTH//2-pseudo.get_width()//2, HEIGHT//2+40))
-
-def draw_nothing_overlay(target):
-    s = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    s.fill((90,90,120,120))
-    screen.blit(s, (0,0))
-    txt = bigfont.render("...Rien ne se passe...", True, (200,200,250))
-    screen.blit(txt, (WIDTH//2-txt.get_width()//2, HEIGHT//2-txt.get_height()//2-20))
-    pseudo = font.render(target, True, (200,200,250))
-    screen.blit(pseudo, (WIDTH//2-pseudo.get_width()//2, HEIGHT//2+40))
-
-def draw_credits(win):
-    s = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    s.fill((10,10,18,220))
-    screen.blit(s, (0,0))
-    if win:
-        msg = "VICTOIRE!"
-        col = (190,255,200)
-    else:
-        msg = "VOUS AVEZ PERDU!"
-        col = (230,140,120)
-    txt = bigfont.render(msg, True, col)
-    screen.blit(txt, (WIDTH//2-txt.get_width()//2, HEIGHT//2-140))
-    y = HEIGHT//2-10
-    credits = [
-        "Code par tchat",
-        "Art par ansimuz, BDragon1727",
-        "Merci d'avoir joué.",
-        "Appuyez sur une touche pour quitter."
-    ]
-    for c in credits:
-        ct = font.render(c, True, (220,220,220))
-        screen.blit(ct, (WIDTH//2-ct.get_width()//2, y))
-        y += 50
-
-def draw_anim(anim_frames, timer, pos):
-    idx = int((timer*FPS//2)%len(anim_frames))
-    frame = anim_frames[idx]
-    screen.blit(frame, pos)
-
-def pseudo_display(pseudo, y, col=(220,220,250)):
-    surf = font.render(pseudo, True, col)
-    x = WIDTH//2 - surf.get_width()//2
-    screen.blit(surf, (x, y))
-
-def wheel_of_fate():
-    state = "idle"
-    timer = 0
-    wheel_angle = 0
-    pseudos = []
-    picked = []
-    threading.Thread(target=irc_thread, args=(pseudos,), daemon=True).start()
-    wait_for = 3
-    actions = []
-    score = 0
-    rounds = 5
-    round_left = rounds
-    outcome = None
-    pseudo = ""
-    ban_list = {}
-    modus = set()
-    anim_timer = 0
-    can_quit = False
-    fade = 0
-
-    while True:
-        for ev in pygame.event.get():
-            if ev.type == pygame.QUIT:
-                pygame.quit(); exit()
-            if can_quit and ev.type == pygame.KEYDOWN:
-                return
-
-        screen.blit(BACKGROUND, (0,0))
-
-        if fade>0:
-            s = pygame.Surface((WIDTH,HEIGHT), pygame.SRCALPHA)
-            s.fill((0,0,0,fade))
-            screen.blit(s,(0,0))
-
-        if state=="idle":
-            txt = font.render("Appuyez sur ESPACE pour tirer un destin!", True, (200,255,200))
-            screen.blit(txt, (WIDTH//2-txt.get_width()//2, HEIGHT-80))
-            if len(pseudos)>0:
-                sample = [p for p in pseudos if p not in picked and p not in ban_list]
-                y = 90
-                random.shuffle(sample)
-                for s in sample[:7]:
-                    pseudo_display(s, y)
-                    y += 38
+class EffectAnim(pygame.sprite.Sprite):
+    def __init__(self, sheet, pos):
+        super().__init__()
+        self.frames = sprite_sheet_frames(sheet, 64, 64)
+        self.image = self.frames[0]
+        self.rect = self.image.get_rect(center=pos)
+        self.index = 0
+        self.timer = 0
+    
+    def update(self):
+        self.timer += 1
+        if self.timer % 4 == 0:
+            self.index += 1
+            if self.index >= len(self.frames):
+                self.kill()
             else:
-                txt = font.render("(Connexion au chat Twitch...)", True, (180,180,180))
-                screen.blit(txt, (WIDTH//2-txt.get_width()//2, HEIGHT//2))
-            if pygame.key.get_pressed()[pygame.K_SPACE]:
-                available = [p for p in pseudos if p not in picked and p not in ban_list]
-                if available:
-                    pseudo = random.choice(available)
-                    state = "spinning"
-                    timer = 0
-                    schling_fx and schling_fx.play()
-                else:
-                    round_left = 0
-                    outcome = False
-                    state = "end"
-                    fade=240
-        elif state=="spinning":
-            picked.append(pseudo)
-            wheel_angle += 24
-            timer += 1/FPS
-            screen.blit(WHEEL, (WIDTH//2-110, HEIGHT//2-110))
-            draw_anim(ANIM_FRAMES, timer, (80, HEIGHT//2-64))
-            pseudo_display(pseudo, HEIGHT//2+120, (255,230,130))
-            if timer>=1.8:
-                res = random.choices(["nothing","ban","modo"], [0.34,0.33,0.33])[0]
-                if res=="ban":
-                    ban_list[pseudo]=time.time()+120
-                    actions.append((pseudo,"ban"))
-                    score+=1
-                    state="ban"
-                    schling_fx and schling_fx.play()
-                elif res=="modo":
-                    modus.add(pseudo)
-                    actions.append((pseudo,"modo"))
-                    state="modo"
-                    schling_fx and schling_fx.play()
-                else:
-                    actions.append((pseudo,"rien"))
-                    state="nothing"
-                timer = 0
-        elif state=="ban":
-            draw_ban_overlay(pseudo)
-            timer += 1/FPS
-            if timer>2.7:
-                round_left -= 1
-                state = "idle" if round_left>0 else "end"
-                outcome = True if score>=3 else False
-                fade=0 if state=="idle" else 240
-        elif state=="modo":
-            draw_modo_overlay(pseudo)
-            timer += 1/FPS
-            if timer>2.3:
-                round_left -= 1
-                state = "idle" if round_left>0 else "end"
-                outcome = True if score>=3 else False
-                fade=0 if state=="idle" else 240
-        elif state=="nothing":
-            draw_nothing_overlay(pseudo)
-            timer += 1/FPS
-            if timer>2.1:
-                round_left -= 1
-                state = "idle" if round_left>0 else "end"
-                outcome = True if score>=3 else False
-                fade=0 if state=="idle" else 240
-        elif state=="end":
-            draw_credits(outcome)
-            can_quit = True
+                self.image = self.frames[self.index]
+                self.rect = self.image.get_rect(center=self.rect.center)
 
-        for p in list(ban_list.keys()):
-            if time.time()>ban_list[p]:
-                del ban_list[p]
+class KhezuSprite(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.img = load_img("KhezuL.png")
+        self.image = pygame.transform.scale(self.img, (128, 128))
+        self.rect = self.image.get_rect(center=(WIDTH-90, HEIGHT//2))
+        self.dir = 1
 
-        ct = tinyfont.render(f"Round: {rounds-round_left+1}/{rounds}", True, (150,220,240))
-        screen.blit(ct, (24, 510))
-        ktxt = tinyfont.render("Khezu <3", True, (180,120,220))
-        screen.blit(ktxt, (WIDTH-ktxt.get_width()-15, 6))
-        anim_timer += 1/FPS
+    def update(self):
+        self.rect.y += self.dir * random.randint(0, 2)
+        if self.rect.top < 20 or self.rect.bottom > HEIGHT-20:
+            self.dir *= -1
 
+class Shape(pygame.sprite.Sprite):
+    def __init__(self, shape, pos, color, size):
+        super().__init__()
+        self.shape = shape
+        self.color = color
+        self.pos = pos
+        self.size = size
+        self.image = pygame.Surface((size*2, size*2), pygame.SRCALPHA)
+        if shape == "circle":
+            pygame.draw.circle(self.image, color, (size, size), size)
+        elif shape == "rect":
+            pygame.draw.rect(self.image, color, (0, 0, size*2, size*2))
+        elif shape == "triangle":
+            pygame.draw.polygon(self.image, color, 
+                [(size, 0), (0, size*2), (size*2, size*2)])
+        elif shape == "kezu":
+            sprite = load_img("KhezuL.png")
+            sprite = pygame.transform.scale(sprite, (size*2, size*2))
+            self.image.blit(sprite, (0, 0))
+        self.rect = self.image.get_rect(center=pos)
+
+class ArtTarget:
+    def __init__(self):
+        self.shapes = []
+        for _ in range(8):
+            t = random.choice(["circle", "rect", "triangle"])
+            pos = (random.randint(120, WIDTH-220), random.randint(120, HEIGHT-220))
+            color = get_random_color()
+            size = random.randint(20, 60)
+            self.shapes.append((t, pos, color, size))
+    
+    def draw(self, surface):
+        for t, pos, col, sz in self.shapes:
+            surf = pygame.Surface((sz*2, sz*2), pygame.SRCALPHA)
+            if t == "circle":
+                pygame.draw.circle(surf, col, (sz, sz), sz)
+            elif t == "rect":
+                pygame.draw.rect(surf, col, (0, 0, sz*2, sz*2))
+            elif t == "triangle":
+                pygame.draw.polygon(surf, col, [(sz, 0), (0, sz*2), (sz*2, sz*2)])
+            surface.blit(surf, (pos[0]-sz, pos[1]-sz))
+        
+def compare_art(player, target):
+    hits = 0
+    for t in target.shapes:
+        for s in player:
+            if (s.shape == t[0] and 
+                abs(s.pos[0]-t[1][0]) < t[3] and
+                abs(s.pos[1]-t[1][1]) < t[3] and
+                s.color == t[2]):
+                hits += 1
+                break
+    return hits
+
+def start_screen():
+    bg = load_img("cyberpunk-street.png")
+    play_music("Piano relaxant3.mp3")
+    timer = 0
+    art = ArtTarget()
+    blink = True
+    while True:
+        WIN.blit(bg, (0,0))
+        art.draw(WIN)
+        draw_text(WIN, "Formes & Oeuvres", 62, WIDTH//2, 110, (255,240,200))
+        if blink:
+            draw_text(WIN, "Appuyez sur ESPACE pour commencer", 26, WIDTH//2, HEIGHT-120, (255,120,220))
+        draw_text(WIN, "Objectif : reproduisez l'oeuvre!", 32, WIDTH//2, HEIGHT-190, (210,255,220))
+        draw_text(WIN, "Art par ansimuz, BDragon1727", 22, WIDTH//2, HEIGHT-40, (120,170,255))
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                play_sound("schling2.mp3")
+                return art
+        timer += 1
+        if timer % 30 == 0: blink = not blink
         pygame.display.flip()
-        clock.tick(FPS)
+        CLOCK.tick(FPS)
 
-if __name__=="__main__":
-    wheel_of_fate()
+def end_screen(win, score, maxscore):
+    bg = load_img("background2.png")
+    play_music("The moment.mp3")
+    timer = 0
+    blink = True
+    while True:
+        WIN.blit(bg, (0,0))
+        if win:
+            draw_text(WIN, "Bravo! Vous avez réussi!", 54, WIDTH//2, 110, (60,255,120))
+            draw_text(WIN, "Khezu t'aime! ♥", 32, WIDTH//2, 160, (255,200,255))
+        else:
+            draw_text(WIN, "Raté! Khezu est déçu...", 54, WIDTH//2, 110, (255,80,80))
+            draw_text(WIN, "Essayez encore!", 28, WIDTH//2, 160, (255,255,255))
+        draw_text(WIN, f"Score: {score}/{maxscore}", 30, WIDTH//2, 210)
+        draw_text(WIN, "code: tchat  |  art: ansimuz, BDragon1727", 20, WIDTH//2, HEIGHT-40, (170,120,255))
+        if blink:
+            draw_text(WIN, "ESPACE = recommencer   |   ECHAP = quitter", 26, WIDTH//2, HEIGHT-80, (120,200,255))
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE: return True
+                if event.key == pygame.K_ESCAPE: pygame.quit(); sys.exit()
+        timer += 1
+        if timer % 30 == 0: blink = not blink
+        pygame.display.flip()
+        CLOCK.tick(FPS)
+
+def main_game(target):
+    print("Khezu > EVERY GAME IS BETTER WITH KHEZU")
+    bg = load_img("background1.png")
+    play_music("Piano relaxant.mp3")
+    player_shapes = pygame.sprite.Group()
+    effectanims = pygame.sprite.Group()
+    khezu = KhezuSprite()
+    clock = pygame.time.Clock()
+    timer = 60 * 45  # 45 secondes
+    selected_shape = "circle"
+    current_color = get_random_color()
+    current_size = 40
+    running = True
+    lastpos = None
+
+    while running:
+        clock.tick(FPS)
+        timer -= 1
+        WIN.blit(bg, (0,0))
+        target.draw(WIN)
+
+        for s in player_shapes: WIN.blit(s.image, s.rect)
+        effectanims.update()
+        effectanims.draw(WIN)
+        khezu.update()
+        WIN.blit(khezu.image, khezu.rect)
+
+        draw_text(WIN, "Sélectionnez forme: [1]○ [2]□ [3]△ [4]Khezu", 26, 180, 40, (240,255,220), center=False)
+        draw_text(WIN, "Couleur: C-Change | +/- Taille | Z-Undo | F-Feu Effet | SPACE-Finir", 24, 18, HEIGHT-40, (220,250,255),center=False)
+        draw_text(WIN, "Temps: "+str(timer//FPS).rjust(2,"0"), 32, WIDTH-120, 30, (234,210,255))
+        draw_text(WIN, "OBJECTIF: reproduire l'oeuvre à gauche!", 24, WIDTH-380, HEIGHT-60, (240,220,255))
+        pygame.draw.rect(WIN, current_color, (12,12,48,48))
+        pygame.draw.rect(WIN, (50,40,44), (10,10,52,52),2)
+        draw_text(WIN, str(current_size), 22, 36, 70, (current_color))
+        shape_icon = None
+        if selected_shape == "circle":
+            shape_icon = pygame.Surface((38,38), pygame.SRCALPHA); pygame.draw.circle(shape_icon, current_color, (19,19), 19)
+        elif selected_shape == "rect":
+            shape_icon = pygame.Surface((38,38), pygame.SRCALPHA); pygame.draw.rect(shape_icon, current_color, (0,0,38,38))
+        elif selected_shape == "triangle":
+            shape_icon = pygame.Surface((38,38), pygame.SRCALPHA);
+            pygame.draw.polygon(shape_icon, current_color, [(19,0),(0,38),(38,38)])
+        elif selected_shape == "kezu":
+            shape_icon = load_img("KhezuL.png")
+            shape_icon = pygame.transform.scale(shape_icon, (38,38))
+        if shape_icon: WIN.blit(shape_icon, (64,18))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_1: selected_shape = "circle"
+                if event.key == pygame.K_2: selected_shape = "rect"
+                if event.key == pygame.K_3: selected_shape = "triangle"
+                if event.key == pygame.K_4: selected_shape = "kezu"
+                if event.key == pygame.K_c: current_color = get_random_color()
+                if event.key == pygame.K_PLUS or event.key == pygame.K_KP_PLUS:
+                    current_size = min(64, current_size+4)
+                if event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
+                    current_size = max(16, current_size-4)
+                if event.key == pygame.K_z and len(player_shapes)>0:
+                    player_shapes.remove(player_shapes.sprites()[-1])
+                    play_sound("schling2.mp3")
+                if event.key == pygame.K_f:
+                    fr = random.choice(['effetanim03.png', 'effetanim05.png', 'effetanim24.png', 'effetanim25.png'])
+                    p = (random.randint(90, WIDTH-90), random.randint(100, HEIGHT-100))
+                    effectanims.add(EffectAnim(fr, p))
+                    play_sound("schling.mp3")
+                if event.key == pygame.K_SPACE:
+                    play_sound("schling2.mp3")
+                    running = False
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mx, my = pygame.mouse.get_pos()
+                if mx > 0 and mx < WIDTH:
+                    player_shapes.add(Shape(selected_shape, (mx,my), current_color, current_size))
+                    play_sound("schling.mp3")
+            if event.type == pygame.MOUSEMOTION and event.buttons[0] == 1:
+                mx, my = pygame.mouse.get_pos()
+                if lastpos is not None and abs(mx-lastpos[0])+abs(my-lastpos[1]) > current_size//2:
+                    player_shapes.add(Shape(selected_shape, (mx,my), current_color, current_size))
+                    play_sound("schling.mp3")
+                lastpos = (mx, my)
+        if timer <= 0:
+            running = False
+        pygame.display.flip()
+
+    player = list(player_shapes)
+    maxscore = len(target.shapes)
+    score = compare_art(player, target)
+    return (score, maxscore)
+
+def main():
+    while True:
+        target = start_screen()
+        score, maxscore = main_game(target)
+        win = (score >= maxscore * 0.75)
+        again = end_screen(win, score, maxscore)
+        if not again:
+            break
+
+main()
