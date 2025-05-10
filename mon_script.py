@@ -2,247 +2,253 @@ import pygame
 import sys
 import os
 import random
+from pygame.locals import *
 
 pygame.init()
-WIDTH, HEIGHT = 928, 512
+pygame.mixer.init()
+clock = pygame.time.Clock()
 FPS = 60
-TITLE = "Joyeux Anniversaire les petits indiens"
-ASSET_DIR = r"C:\Users\Malkai\Desktop\Streaming\Images"
-FONT = pygame.font.SysFont("comicsansms", 38)
-FONT_SMALL = pygame.font.SysFont("comicsansms", 26)
 
-def load_img(name, scale=None, colorkey=None):
-    path = os.path.join(ASSET_DIR, name)
-    img = pygame.image.load(path).convert_alpha()
-    if scale:
-        img = pygame.transform.scale(img, scale)
-    if colorkey is not None:
-        img.set_colorkey(colorkey)
-    return img
+WINDOW_WIDTH, WINDOW_HEIGHT = 960, 540
+screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+pygame.display.set_caption("Khezu Clicker")
 
-def play_music(filename, volume=0.5, loop=-1):
-    path = os.path.join(ASSET_DIR, filename)
-    pygame.mixer.music.load(path)
-    pygame.mixer.music.set_volume(volume)
-    pygame.mixer.music.play(loop)
+img_path = "C:\\Users\\Malkai\\Desktop\\Streaming\\Images"
+def load_img(name, alpha=False):
+    path = os.path.join(img_path, name)
+    if alpha:
+        return pygame.image.load(path).convert_alpha()
+    else:
+        return pygame.image.load(path).convert()
 
-def play_sound(name, volume=0.5):
-    path = os.path.join(ASSET_DIR, name)
-    snd = pygame.mixer.Sound(path)
-    snd.set_volume(volume)
-    snd.play()
+def load_sound(name):
+    s = pygame.mixer.Sound(os.path.join(img_path, name))
+    s.set_volume(0.5)
+    return s
 
-def cut_sheet(sheet, frame_width=64, frame_height=64):
-    frames = []
-    sw, sh = sheet.get_size()
-    for y in range(0, sh // frame_height):
-        for x in range(0, sw // frame_width):
-            frame = sheet.subsurface((x * frame_width, y * frame_height, frame_width, frame_height))
-            frames.append(frame)
-    return frames
+def load_music(name):
+    pygame.mixer.music.load(os.path.join(img_path, name))
+    pygame.mixer.music.set_volume(0.5)
 
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption(TITLE)
+backgrounds = [
+    load_img("background1.png"),
+    load_img("background2.png"),
+    load_img("cyberpunk-street.png")
+]
+bg_idx = 0
 
-bg1 = load_img('background1.png', (WIDTH, HEIGHT))
-bg2 = load_img('background2.png', (WIDTH, HEIGHT))
-khezu_img = load_img('KhezuL.png', (110, 92))
-indian_img = load_img('Pweto.png', (70, 70))
-cake_img = load_img('tigre desssin.png', (80, 72))
-confetti = load_img('BLcheers.gif', (64, 64))
-monster_img = load_img('ksekos.png', (68, 68))
-effect_sheet = load_img('effetanim16.png')
-effect_frames = cut_sheet(effect_sheet)
+khezu_img = pygame.transform.scale(load_img("KhezuL.png", True), (256,192))
+khezu_rect = khezu_img.get_rect(center=(WINDOW_WIDTH//2, WINDOW_HEIGHT//2 + 40))
+btn_font = pygame.font.SysFont("consolas", 32, bold=True)
+score_font = pygame.font.SysFont("consolas", 28, bold=True)
+big_font = pygame.font.SysFont("consolas", 60, bold=True)
+small_font = pygame.font.SysFont("consolas", 18)
 
-bg_music = 'Piano relaxant2.mp3'
-win_music = 'The moment.mp3'
-lose_music = 'schling2.mp3'
-snd_collect = 'schling.mp3'
+click_sound = load_sound("schling.mp3")
+buy_sound = load_sound("schling2.mp3")
+win_sound = load_sound("Piano relaxant3.mp3")
+lose_sound = load_sound("The moment.mp3")
+auto_sound = load_sound("Piano relaxant2.mp3")
+celebrate_gif = load_img("BLcheers.gif", True)
 
-class Cake(pygame.sprite.Sprite):
-    def __init__(self, x, y):
+max_score = 6969696969696969
+score = 0
+khezu_per_click = 1
+auto_khezu = 0
+auto_khezu_timer = 0
+auto_khezu_interval = 1000
+auto_khezu_level = 0
+auto_khezu_cost = 50
+win = False
+lose = False
+show_credits = False
+bg_anim_timer = 0
+bg_anim_interval = 2200
+fail_time_limit = 250 # seconds
+start_ticks = pygame.time.get_ticks()
+credits_screen = False
+blink = False
+
+# Simple effect animation for click
+class EffectAnim(pygame.sprite.Sprite):
+    def __init__(self, x, y, sheetname):
         super().__init__()
-        self.image = cake_img
-        self.rect = self.image.get_rect(topleft=(x, y))
+        self.sheet = load_img(sheetname, True)
+        self.frames = []
+        for i in range(self.sheet.get_width()//64):
+            frame = self.sheet.subsurface((i*64,0,64,64))
+            self.frames.append(frame)
+        self.idx = 0
+        self.image = self.frames[self.idx]
+        self.rect = self.image.get_rect(center=(x,y))
+        self.timer = 0
     def update(self):
-        pass
+        self.timer += 1
+        if self.timer % 2 == 0: self.idx += 1
+        if self.idx>=len(self.frames): self.kill()
+        else: self.image = self.frames[self.idx]
 
-class Effect(pygame.sprite.Sprite):
-    def __init__(self, x, y):
-        super().__init__()
-        self.frames = effect_frames
-        self.cur = 0
-        self.image = self.frames[0]
-        self.rect = self.image.get_rect(center=(x, y))
-        self.done = False
-    def update(self):
-        self.cur += 0.5
-        if self.cur >= len(self.frames):
-            self.done = True
-            return
-        self.image = self.frames[int(self.cur)]
+effects = pygame.sprite.Group()
 
-class Player(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__()
-        self.image = indian_img
-        self.rect = self.image.get_rect(midbottom=(WIDTH//2, HEIGHT-10))
-        self.velocity = pygame.Vector2(0, 0)
-        self.speed = 7
-        self.jump_power = -14
-        self.on_ground = True
-    def update(self, keys):
-        if keys[pygame.K_LEFT]:
-            self.rect.x -= self.speed
-        if keys[pygame.K_RIGHT]:
-            self.rect.x += self.speed
-        self.velocity.y += 0.75
-        if keys[pygame.K_SPACE] and self.on_ground:
-            self.velocity.y = self.jump_power
-            self.on_ground = False
-        self.rect.y += int(self.velocity.y)
-        if self.rect.bottom >= HEIGHT:
-            self.rect.bottom = HEIGHT
-            self.on_ground = True
-            self.velocity.y = 0
-        self.rect.left = max(0, self.rect.left)
-        self.rect.right = min(WIDTH, self.rect.right)
+def draw_button(rect, text, enabled=True):
+    color = (200,220,255) if enabled else (90,90,90)
+    pygame.draw.rect(screen, color, rect, border_radius=12)
+    pygame.draw.rect(screen, (80,110,170), rect, 3, border_radius=12)
+    tx = btn_font.render(text, True, (30,20,30) if enabled else (120,120,120))
+    tx_rect = tx.get_rect(center=rect.center)
+    screen.blit(tx, tx_rect)
 
-class Monster(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__()
-        self.image = khezu_img
-        self.rect = self.image.get_rect(midtop=(random.randint(60, WIDTH-60), -90))
-        self.speed = random.uniform(2.0, 3.7)
-        self.direction = random.choice([-1,1])
-    def update(self):
-        self.rect.x += self.direction * 2
-        self.rect.y += self.speed
-        if self.rect.left < 0 or self.rect.right > WIDTH:
-            self.direction *= -1
-        if self.rect.top > HEIGHT + 10:
-            self.kill()
+def format_score(sc):
+    if sc >= 1e12: return f"{sc//10**12}T"
+    elif sc >= 1e9: return f"{sc//10**9}G"
+    elif sc>=1e6: return f"{sc//10**6}M"
+    elif sc>=1e3: return f"{sc//10**3}k"
+    else: return str(sc)
 
-class FakeMonster(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__()
-        self.image = monster_img
-        self.rect = self.image.get_rect(midtop=(random.randint(60, WIDTH-60), -68))
-        self.speed = random.uniform(1.1, 2.4)
-        self.direction = random.choice([-1,1])
-    def update(self):
-        self.rect.x += self.direction
-        self.rect.y += self.speed
-        if self.rect.left < 0 or self.rect.right > WIDTH:
-            self.direction *= -1
-        if self.rect.top > HEIGHT + 10:
-            self.kill()
+def animate_khezu(osc):
+    pos = khezu_rect.copy()
+    pos.centery += int(8*osc)
+    screen.blit(khezu_img, pos)
 
-def draw_birthday_banner():
-    t0 = FONT.render("Joyeux Anniversaire", True, (255, 210, 60))
-    t1 = FONT_SMALL.render("Ramasse tous les gâteaux avant que Khezu ne t'attrape!", True, (40, 240, 220))
-    t2 = FONT_SMALL.render("(Espace pour sauter, ← → pour bouger)", True, (255, 210, 120))
-    screen.blit(t0, (WIDTH//2 - t0.get_width()//2, 12))
-    screen.blit(t1, (WIDTH//2 - t1.get_width()//2, 48))
-    screen.blit(t2, (WIDTH//2 - t2.get_width()//2, 92))
+def draw_ui():
+    global blink
+    t = (pygame.time.get_ticks()//420) % 2 == 0
+    blink = t
+    pygame.draw.rect(screen, (20,20,30), (10,10,WINDOW_WIDTH-20, 64), border_radius=16)
+    s_surf = score_font.render(f"Khezu: {format_score(score)}", True, (255,240,240) if blink else (255,190,190))
+    screen.blit(s_surf, (24,24))
+    need = score/max_score
+    pygame.draw.rect(screen, (45,0,0), (10,80,WINDOW_WIDTH-20,10), border_radius=4)
+    pygame.draw.rect(screen, (250,100,220), (10,80,int((WINDOW_WIDTH-20)*need),10), border_radius=4)
+    screen.blit(score_font.render(f"Goal: {max_score}", True, (220,220,220)), (WINDOW_WIDTH//2+180,24))
+    s_auto = score_font.render(f"AutoKhezu: {auto_khezu_level} (+{auto_khezu}/sec)", True, (200,255,220))
+    screen.blit(s_auto, (24,54))
 
-def show_credits(win):
-    screen.fill((20,0,50))
-    color = (255,230,100) if win else (255,0,0)
-    ms = "Bravo, tu as fêté l'anniversaire !" if win else "Khezu a tout mangé !"
-    msc = FONT.render(ms, True, color)
-    screen.blit(msc, (WIDTH//2 - msc.get_width()//2, 100))
-    cr = FONT_SMALL.render("code: tchat  |  art: ansimuz, BDragon1727", True, (200, 200, 245))
-    screen.blit(cr, (WIDTH//2 - cr.get_width()//2, 320))
-    pygame.display.flip()
-    pygame.time.wait(4000)
+def draw_shop():
+    rect = pygame.Rect(WINDOW_WIDTH-330, WINDOW_HEIGHT-110, 320, 90)
+    pygame.draw.rect(screen, (24,28,34), rect, border_radius=16)
+    pygame.draw.rect(screen, (110,160,200), rect, 2, border_radius=16)
+    tx = btn_font.render("SHOP", True, (148,255,224))
+    screen.blit(tx, (rect.x+8, rect.y+7))
+    btn = pygame.Rect(rect.x+18, rect.y+45, 184,38)
+    draw_button(btn, f"+1 AutoKhezu ({auto_khezu_cost})", enabled=(score>=auto_khezu_cost))
+    return btn
 
-def main():
-    print("Longue vie à Khezu le best monstre !")
-    play_music(bg_music, volume=0.5)
-    clock = pygame.time.Clock()
-    backgs = [bg1, bg2]
-    bg_idx = 0
-    player = Player()
-    cakes = pygame.sprite.Group()
-    monsters = pygame.sprite.Group()
-    fakemons = pygame.sprite.Group()
-    effects = pygame.sprite.Group()
-    for i in range(10):
-        x, y = random.randint(80, WIDTH-80), random.randint(170, HEIGHT-110)
-        cakes.add(Cake(x, y))
-    start_ticks = pygame.time.get_ticks()
-    elapsed = 0
-    running = True
-    lose = False
+def draw_timer():
+    elapsed = (pygame.time.get_ticks()-start_ticks)//1000
+    left = max(0, fail_time_limit-elapsed)
+    timer = score_font.render(f"Time left: {left}s", True, (248,210,180))
+    screen.blit(timer, (WINDOW_WIDTH-210,10))
+    return left
+
+def show_win():
+    screen.blit(backgrounds[2], (0,0))
+    screen.blit(celebrate_gif, (WINDOW_WIDTH//2-150, WINDOW_HEIGHT//2-120))
+    t1 = big_font.render("VICTOIRE!", True, (255,200,255))
+    t2 = score_font.render("Khezu suprême est content", True, (225,170,200))
+    screen.blit(t1, (WINDOW_WIDTH//2-t1.get_width()//2, 60))
+    screen.blit(t2, (WINDOW_WIDTH//2-t2.get_width()//2, 160))
+    cred = small_font.render("Code: tchat | Art: ansimuz, BDragon1727", True, (120,250,220))
+    screen.blit(cred, (WINDOW_WIDTH//2-cred.get_width()//2, WINDOW_HEIGHT-70))
+    t3 = score_font.render("Merci d'avoir élevé le Khezu.", True, (250,250,250))
+    screen.blit(t3, (WINDOW_WIDTH//2-t3.get_width()//2, 260))
+    t4 = score_font.render("Appuie sur Echap ou ferme la fenêtre.", True, (200,220,230))
+    screen.blit(t4, (WINDOW_WIDTH//2-t4.get_width()//2, 310))
+
+def show_lose():
+    screen.fill((20,16,32))
+    t1 = big_font.render("ECHEC", True, (255,80,100))
+    t2 = score_font.render("Trop lent! Le Khezu s'est échappé.", True, (230,70,70))
+    screen.blit(t1, (WINDOW_WIDTH//2-t1.get_width()//2, 90))
+    screen.blit(t2, (WINDOW_WIDTH//2-t2.get_width()//2, WINDOW_HEIGHT//2-20))
+    cred = small_font.render("Code: tchat | Art: ansimuz, BDragon1727", True, (220,120,220))
+    screen.blit(cred, (WINDOW_WIDTH//2-cred.get_width()//2, WINDOW_HEIGHT-70))
+    t3 = score_font.render("Appuie sur Echap ou ferme la fenêtre.", True, (210,200,220))
+    screen.blit(t3, (WINDOW_WIDTH//2-t3.get_width()//2, WINDOW_HEIGHT//2+60))
+
+def reset_game():
+    global score, auto_khezu, auto_khezu_timer, auto_khezu_level, auto_khezu_cost, win, lose, show_credits, start_ticks
+    score = 0
+    auto_khezu = 0
+    auto_khezu_timer = 0
+    auto_khezu_level = 0
+    auto_khezu_cost = 50
     win = False
-    cake_collected = 0
-    confetti_timer = 0
-    while running:
-        clock.tick(FPS)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit(); # NENON PAS BIEN : sys.exit()
-        keys = pygame.key.get_pressed()
-        screen.blit(backgs[bg_idx], (0,0))
-        draw_birthday_banner()
-        player.update(keys)
-        cakes.update()
-        monsters.update()
-        fakemons.update()
-        effects.update()
-
-        cakes.draw(screen)
-        monsters.draw(screen)
-        fakemons.draw(screen)
-        screen.blit(player.image, player.rect)
-        for ef in list(effects):
-            ef.update()
-            if ef.done:
-                effects.remove(ef)
-            else:
-                screen.blit(ef.image, ef.rect)
-
-        got_cake = pygame.sprite.spritecollide(player, cakes, True)
-        if got_cake:
-            for c in got_cake:
-                play_sound(snd_collect, 0.32)
-                effects.add(Effect(c.rect.centerx, c.rect.centery))
-                cake_collected += 1
-
-        if random.random() < 0.018:
-            monsters.add(Monster())
-        if random.random() < 0.01:
-            fakemons.add(FakeMonster())
-
-        scoretxt = FONT_SMALL.render(f"Gâteaux: {cake_collected}/{10}", True, (220,235,230))
-        screen.blit(scoretxt, (24,18))
-
-        hit_monster = pygame.sprite.spritecollide(player, monsters, False)
-        elapsed = (pygame.time.get_ticks() - start_ticks) / 1000
-        if hit_monster:
-            lose = True
-            play_sound(lose_music, 0.5)
-            break
-        if cake_collected == 10:
-            win = True
-            play_music(win_music, 0.52, loop=0)
-            break
-
-        if int(elapsed) % 7 == 0:
-            bg_idx = 1
-        else:
-            bg_idx = 0
-
-        if cake_collected >= 8 and confetti_timer % 6 == 0:
-            x = random.randint(32, WIDTH-32)
-            y = random.randint(32, HEIGHT-32)
-            screen.blit(confetti, (x, y))
-        confetti_timer += 1
-        pygame.display.flip()
-
+    lose = False
+    show_credits = False
+    start_ticks = pygame.time.get_ticks()
     pygame.mixer.music.stop()
-    show_credits(win)
+
+def spawn_effect(x, y):
+    effects.add(EffectAnim(x, y, f"effetanim{random.choice([3,4,5,6,13,14,15,16,23,24,25,26]):02d}.png"))
+
+print("KEZHU KEZHU KEZHU <3")
+load_music("Piano relaxant.mp3")
+pygame.mixer.music.play(-1)
+
+bg_offset = 0.0
 
 while True:
-    main()
+    for event in pygame.event.get():
+        if event.type == QUIT:
+            pygame.quit()
+            sys.exit()
+        if win or lose:
+            if event.type == KEYDOWN and event.key == K_ESCAPE:
+                pygame.quit()
+                sys.exit()
+        if not (win or lose):
+            if event.type == MOUSEBUTTONDOWN and event.button == 1:
+                mx,my = event.pos
+                if khezu_rect.collidepoint(mx,my):
+                    cval = khezu_per_click + auto_khezu_level//4
+                    score += cval
+                    click_sound.play()
+                    spawn_effect(mx,my)
+                shop_btn = draw_shop()
+                if shop_btn.collidepoint(mx,my) and score>=auto_khezu_cost:
+                    buy_sound.play()
+                    score -= auto_khezu_cost
+                    auto_khezu_level += 1
+                    auto_khezu += 1
+                    auto_khezu_cost = int(auto_khezu_cost*1.32+auto_khezu_level*7)
+                    for i in range(2):
+                        spawn_effect(shop_btn.centerx+random.randint(-10,10), shop_btn.centery+random.randint(-10,10))
+
+    if not (win or lose):
+        bg_anim_timer += clock.get_time()
+        if bg_anim_timer > bg_anim_interval:
+            bg_anim_timer = 0
+            bg_idx = (bg_idx+1)%len(backgrounds)
+        bg_offset += 0.05
+        if bg_offset>=backgrounds[bg_idx].get_height():
+            bg_offset = 0
+        screen.blit(backgrounds[bg_idx], (0,0))
+        draw_ui()
+        animate_khezu(pygame.math.sin(pygame.time.get_ticks()/180))
+        shop_btn = draw_shop()
+        left = draw_timer()
+        effects.update()
+        effects.draw(screen)
+        if auto_khezu_level>0:
+            auto_khezu_timer += clock.get_time()
+            if auto_khezu_timer >= 1000:
+                auto_khezu_timer = 0
+                score += auto_khezu
+                auto_sound.play()
+                spawn_effect(random.randint(khezu_rect.left, khezu_rect.right), khezu_rect.bottom+random.randint(-8,8))
+        if score>=max_score:
+            win = True
+            pygame.mixer.music.fadeout(1500)
+            win_sound.play()
+        if left<=0 and not win:
+            lose = True
+            pygame.mixer.music.fadeout(1200)
+            lose_sound.play()
+    else:
+        if win:
+            show_win()
+        elif lose:
+            show_lose()
+    pygame.display.flip()
+    clock.tick(FPS)
