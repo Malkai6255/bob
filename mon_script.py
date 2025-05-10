@@ -1,279 +1,256 @@
 import pygame
-import random
 import sys
 import os
+import random
 
-pygame.mixer.pre_init(44100, -16, 2, 512)
 pygame.init()
-WIDTH, HEIGHT = 640, 480
+WIDTH, HEIGHT = 928, 512
 FPS = 60
-MAP_TILE = 64
-font = pygame.font.SysFont('consolas', 32)
-smallfont = pygame.font.SysFont('consolas', 24)
-clock = pygame.time.Clock()
-WIN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Khezu Quest: The Lost Colère")
-ASSET = r"C:\Users\Malkai\Desktop\Streaming\Images"
+TITLE = "Joyeux Anniversaire les petits indiens"
+ASSET_DIR = r"C:\Users\Malkai\Desktop\Streaming\Images"
+FONT = pygame.font.SysFont("comicsansms", 38)
+FONT_SMALL = pygame.font.SysFont("comicsansms", 26)
 
-def load_img(fn, alpha=True):
-    img = pygame.image.load(os.path.join(ASSET, fn))
-    return img.convert_alpha() if alpha else img.convert()
+def load_img(name, scale=None, colorkey=None):
+    path = os.path.join(ASSET_DIR, name)
+    img = pygame.image.load(path).convert_alpha()
+    if scale:
+        img = pygame.transform.scale(img, scale)
+    if colorkey is not None:
+        img.set_colorkey(colorkey)
+    return img
 
-def load_music(name):
-    pygame.mixer.music.load(os.path.join(ASSET, name))
+def play_music(filename, volume=0.5, loop=-1):
+    path = os.path.join(ASSET_DIR, filename)
+    pygame.mixer.music.load(path)
+    pygame.mixer.music.set_volume(volume)
+    pygame.mixer.music.play(loop)
 
-def play_sound(name):
-    pygame.mixer.Sound(os.path.join(ASSET, name)).play()
+def play_sound(name, volume=0.5):
+    path = os.path.join(ASSET_DIR, name)
+    snd = pygame.mixer.Sound(path)
+    snd.set_volume(volume)
+    snd.play()
 
-def draw_text(surface, text, pos, color=(255,255,255), fnt=font, bg=None):
-    r = fnt.render(text, True, color, bg)
-    surface.blit(r, pos)
+def cut_sheet(sheet, frame_width=64, frame_height=64):
+    frames = []
+    sw, sh = sheet.get_size()
+    for y in range(0, sh // frame_height):
+        for x in range(0, sw // frame_width):
+            frame = sheet.subsurface((x * frame_width, y * frame_height, frame_width, frame_height))
+            frames.append(frame)
+    return frames
 
-def dialog_box(surface, lines, y=HEIGHT-170):
-    pygame.draw.rect(surface, (20,20,40), (30, y, WIDTH-60, 140))
-    pygame.draw.rect(surface, (240,240,255), (32, y+2, WIDTH-64, 136), 2)
-    for i,line in enumerate(lines):
-        draw_text(surface, line, (50, y+15+i*34), (250,250,250), smallfont)
+# Display
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption(TITLE)
 
-class Map:
+# Load assets
+bg1 = load_img('background1.png', (WIDTH, HEIGHT))
+bg2 = load_img('background2.png', (WIDTH, HEIGHT))
+khezu_img = load_img('KhezuL.png', (110, 92))
+indian_img = load_img('Pweto.png', (70, 70))
+cake_img = load_img('tigre desssin.png', (80, 72))
+confetti = load_img('BLcheers.gif', (64, 64))
+monster_img = load_img('ksekos.png', (68, 68))
+effect_sheet = load_img('effetanim16.png')
+effect_frames = cut_sheet(effect_sheet)
+
+bg_music = 'Piano relaxant2.mp3'
+win_music = 'The moment.mp3'
+lose_music = 'schling2.mp3'
+snd_collect = 'schling.mp3'
+
+class Cake(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = cake_img
+        self.rect = self.image.get_rect(topleft=(x, y))
+    def update(self):
+        pass
+
+class Effect(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.frames = effect_frames
+        self.cur = 0
+        self.image = self.frames[0]
+        self.rect = self.image.get_rect(center=(x, y))
+        self.done = False
+    def update(self):
+        self.cur += 0.5
+        if self.cur >= len(self.frames):
+            self.done = True
+            return
+        self.image = self.frames[int(self.cur)]
+
+class Player(pygame.sprite.Sprite):
     def __init__(self):
-        self.bg = load_img("background1.png", alpha=False)
-        self.w, self.h = 10, 7
-        self.tiles = [[0]*self.w for _ in range(self.h)]
-        self.npcs = [
-            {"pos":(3,2), "img":load_img("Pweto.png"), "dialog":
-                [ "Pwetooo ! C'est dangereux par ici.", "Prends cette BLcheers et bonne chance!" ]},
-            {"pos":(7,5), "img":load_img("tigre desssin.png"), "dialog":
-                [ "Le colere a volé mon schling!", "Bats Khezu pour sauver le monde!"]},
-        ]
-        self.khezu_pos = (8,2)
-        self.goal = (9,6)
-
-    def draw(self, surface, px, py):
-        for y in range(self.h):
-            for x in range(self.w):
-                sx, sy = x*MAP_TILE, y*MAP_TILE
-                surface.blit(self.bg, (sx,sy), area=pygame.Rect(sx%WIDTH, sy%HEIGHT, MAP_TILE, MAP_TILE))
-        for npc in self.npcs:
-            x,y = npc["pos"]
-            surface.blit(pygame.transform.scale(npc["img"], (MAP_TILE,MAP_TILE)), (x*MAP_TILE,y*MAP_TILE))
-        kx,ky = self.khezu_pos
-        surface.blit(pygame.transform.scale(load_img("KhezuL.png"), (MAP_TILE,MAP_TILE)), (kx*MAP_TILE,ky*MAP_TILE))
-        gx,gy = self.goal
-        surface.blit(load_img("colere.png"), (gx*MAP_TILE,gy*MAP_TILE))
-
-    def npc_at(self, x,y):
-        for npc in self.npcs:
-            if (x,y)==npc["pos"]:
-                return npc
-        return None
-
-    def is_khezu(self, x,y):
-        return (x,y)==self.khezu_pos
-    def is_goal(self,x,y):
-        return (x,y)==self.goal
-
-class Player:
-    def __init__(self):
-        self.x, self.y = 1, 1
-        self.hp = 26
-        self.maxhp = 26
-        self.mana = 10
-        self.img = pygame.transform.scale(load_img("toonlink-link.gif"), (MAP_TILE,MAP_TILE))
-        self.inv = {"BLcheers":1}
-        self.wins = 0
-
-    def move(self,dx,dy,mapobj):
-        tx,ty = self.x+dx, self.y+dy
-        if 0<=tx<mapobj.w and 0<=ty<mapobj.h:
-            self.x, self.y = tx, ty
-
-def show_intro():
-    running=True
-    timer=0
-    while running:
-        WIN.fill((4, 6, 22))
-        draw_text(WIN, "Khezu Quest: The Lost Colère", (70, 90),(240,30,30))
-        draw_text(WIN, "(appuyez sur Espace pour commencer)", (130, 320), (190,230,255), smallfont)
-        pygame.display.flip()
-        for ev in pygame.event.get():
-            if ev.type==pygame.QUIT: # NENON PAS BIEN : sys.exit()
-            if ev.type==pygame.KEYDOWN and ev.key==pygame.K_SPACE:
-                running=False
-        clock.tick(FPS)
-
-def random_event():
-    return random.random() < 0.18
-
-def battle(player, enemy, bg_img):
-    battlebg = pygame.transform.scale(load_img(bg_img),(WIDTH,HEIGHT))
-    eff_imgs = [pygame.image.load(os.path.join(ASSET, f"effetanim0{r}.png")) 
-                for r in [3,4,5,6,13,14,15,16,23,24,25,26]]
-    turn = "player"
-    eff_timer = 0
-    eff_img = None
-    run_cooldown = 0
-    msg = []
-    while player.hp > 0 and enemy["hp"] > 0:
-        WIN.blit(battlebg,(0,0))
-        pygame.draw.rect(WIN,(8,8,60),(20,450,600,100))
-        draw_text(WIN, f"{enemy['name']}  HP:{enemy['hp']}", (400,80), (255,90,90))
-        WIN.blit(pygame.transform.scale(enemy['img'], (140,160)), (440,160))
-        draw_text(WIN, f"Toi  HP:{player.hp}/{player.maxhp}", (40,80), (150,250,110))
-        WIN.blit(player.img, (70,180))
-        if eff_img:
-            ix = (pygame.time.get_ticks()//80)%8; iy = (pygame.time.get_ticks()//320)%2
-            WIN.blit(eff_img.subsurface(ix*64,iy*64,64,64), (360,160))
-            eff_timer -= 1
-            if eff_timer<=0: eff_img = None
-        if msg:
-            dialog_box(WIN, msg[-2:] if len(msg)>2 else msg, 430)
+        super().__init__()
+        self.image = indian_img
+        self.rect = self.image.get_rect(midbottom=(WIDTH//2, HEIGHT-10))
+        self.velocity = pygame.Vector2(0, 0)
+        self.speed = 7
+        self.jump_power = -14
+        self.on_ground = False
+    def update(self, keys):
+        if keys[pygame.K_LEFT]:
+            self.rect.x -= self.speed
+        if keys[pygame.K_RIGHT]:
+            self.rect.x += self.speed
+        self.velocity.y += 0.75
+        if self.rect.bottom < HEIGHT:
+            self.rect.y += int(self.velocity.y)
+            self.on_ground = False
         else:
-            draw_text(WIN, "[A]ttaquer   [B]Lcheers    [F]uir", (40, 450), (250,240,220), smallfont)
-        pygame.display.flip()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT: # NENON PAS BIEN : sys.exit()
-            if event.type == pygame.KEYDOWN and not msg and run_cooldown<=0:
-                if turn=="player":
-                    if event.key==pygame.K_a:
-                        dmg=random.randint(4,10)
-                        play_sound("schling2.mp3")
-                        enemy['hp']-=dmg
-                        eff_img = pygame.transform.scale(eff_imgs[random.randint(0,11)], (512,128))
-                        eff_timer=8
-                        msg.append(f"Tu frappes {enemy['name']} pour {dmg}!")
-                        turn="enemy"
-                    elif event.key==pygame.K_b and player.inv.get("BLcheers",0)>0:
-                        heal=random.randint(8,15)
-                        play_sound("schling.mp3")
-                        player.hp=min(player.maxhp, player.hp+heal)
-                        player.inv["BLcheers"]-=1
-                        msg.append("BLcheers! Santé+%d"%heal)
-                        turn="enemy"
-                    elif event.key==pygame.K_f:
-                        if random.random()<.68:
-                            msg.append("Tu t'échappes !")
-                            pygame.time.wait(600)
-                            return "run"
-                        else:
-                            msg.append("Pas de bol : tu restes coincé!")
-                            turn = "enemy"
-            elif event.type==pygame.KEYDOWN and msg:
-                msg=[]
-        if turn=="enemy" and not msg and run_cooldown<=0:
-            pygame.time.wait(450)
-            atk = random.choice(["charge", "cris", "lumin"])
-            if atk=="charge":
-                play_sound("schling2.mp3")
-                dmg=random.randint(3,10)
-                player.hp-=dmg
-                msg.append(f"{enemy['name']} charge! -{dmg} HP")
-            elif atk=="cris":
-                play_sound("schling.mp3")
-                dmg=random.randint(1,8)
-                player.hp-=dmg
-                msg.append(f"{enemy['name']} crie! -{dmg} HP")
-            elif atk=="lumin":
-                dmg=max(1,player.hp//6)
-                player.hp-=dmg
-                msg.append(f"{enemy['name']} s'illumine! -{dmg} HP")
-            turn="player"
-        clock.tick(FPS)
-        run_cooldown = max(run_cooldown-1, 0)
-    return "win" if player.hp>0 else "lose"
+            self.rect.bottom = HEIGHT
+            self.velocity.y = 0
+            self.on_ground = True
+        if keys[pygame.K_SPACE] and self.on_ground:
+            self.velocity.y = self.jump_power
+        self.rect.left = max(0, self.rect.left)
+        self.rect.right = min(WIDTH, self.rect.right)
 
-def npc_dialog(npc):
-    running = True
-    lines = npc["dialog"].copy()
-    idx = 0
-    while running:
-        WIN.fill((8,8,60))
-        WIN.blit(pygame.transform.scale(npc["img"], (200,200)), (WIDTH//2-100, 60))
-        dialog_box(WIN, [ lines[idx] ])
-        pygame.display.flip()
-        for e in pygame.event.get():
-            if e.type == pygame.QUIT: # NENON PAS BIEN : sys.exit()
-            if e.type == pygame.KEYDOWN and e.key == pygame.K_SPACE:
-                idx+=1
-                if idx>=len(lines): running=False
-        clock.tick(FPS)
+class Monster(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = khezu_img
+        self.rect = self.image.get_rect(midtop=(random.randint(60, WIDTH-60), -90))
+        self.speed = random.uniform(2.0, 3.7)
+        self.direction = random.choice([-1,1])
+    def update(self):
+        self.rect.x += self.direction * 2
+        self.rect.y += self.speed
+        if self.rect.left < 0 or self.rect.right > WIDTH:
+            self.direction *= -1
+        if self.rect.top > HEIGHT + 10:
+            self.kill()
 
-def victory_screen(win):
-    WIN.fill((0,12,32))
-    draw_text(WIN, "VICTOIRE!" if win else "GAME OVER", (240,100), (210,190,250) if win else (255,60,70))
-    draw_text(WIN, "Merci d'avoir joué à Khezu Quest!", (90,180), (250,250,240), smallfont)
-    draw_text(WIN, "Objectif: battre Khezu, récupérer le Colère.", (60,220),(230,255,170), smallfont)
-    draw_text(WIN, "Crédits:", (260,280), (240,240,255), smallfont)
-    draw_text(WIN, "code par tchat, art par ansimuz, BDragon1727", (100, 310), (210,240,255), smallfont)
-    draw_text(WIN, "Appuie sur ESC pour quitter.", (200,400), (180,220,240), smallfont)
+class FakeMonster(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = monster_img
+        self.rect = self.image.get_rect(midtop=(random.randint(60, WIDTH-60), -68))
+        self.speed = random.uniform(1.1, 2.4)
+        self.direction = random.choice([-1,1])
+    def update(self):
+        self.rect.x += self.direction
+        self.rect.y += self.speed
+        if self.rect.left < 0 or self.rect.right > WIDTH:
+            self.direction *= -1
+        if self.rect.top > HEIGHT + 10:
+            self.kill()
+
+def draw_birthday_banner():
+    t0 = FONT.render("Joyeux Anniversaire", True, (255, 210, 60))
+    t1 = FONT_SMALL.render("Ramasse tous les gâteaux avant que Khezu ne t'attrape!", True, (40, 240, 220))
+    t2 = FONT_SMALL.render("(Espace pour sauter, ← → pour bouger)", True, (255, 210, 120))
+    screen.blit(t0, (WIDTH//2 - t0.get_width()//2, 12))
+    screen.blit(t1, (WIDTH//2 - t1.get_width()//2, 48))
+    screen.blit(t2, (WIDTH//2 - t2.get_width()//2, 92))
+
+def show_credits(win):
+    screen.fill((20,0,50))
+    color = (255,230,100) if win else (255,0,0)
+    ms = "Bravo, tu as fêté l'anniversaire !" if win else "Khezu a tout mangé !"
+    msc = FONT.render(ms, True, color)
+    screen.blit(msc, (WIDTH//2 - msc.get_width()//2, 100))
+    cr = FONT_SMALL.render("code: tchat  |  art: ansimuz, BDragon1727", True, (200, 200, 245))
+    screen.blit(cr, (WIDTH//2 - cr.get_width()//2, 320))
     pygame.display.flip()
-    while True:
-        for e in pygame.event.get():
-            if e.type == pygame.QUIT: # NENON PAS BIEN : sys.exit()
-            if e.type == pygame.KEYDOWN and e.key==pygame.K_ESCAPE: # NENON PAS BIEN : sys.exit()
-        clock.tick(30)
-
-def khezu_encounter_bg():
-    return "background2.png"
-
-def random_enemy():
-    if random.random()<0.5:
-        return {"name":"Pweto sauvage","hp":18,"img":load_img("Pweto.png")}
-    else:
-        return {"name":"Ksekos","hp":20,"img":load_img("ksekos.png")}
-
-def khezu_boss():
-    return {"name":"KHEZU","hp":37,"img":load_img("KhezuL.png")}
+    pygame.time.wait(4000)
 
 def main():
-    show_intro()
-    load_music("cyberpunk-street.mp3")
-    pygame.mixer.music.play(-1)
-    print("Khezu is Love, Khezu is Life.")
-    world = Map()
+    print("Longue vie à Khezu le best monstre !")
+    play_music(bg_music, volume=0.5)
+    clock = pygame.time.Clock()
+    backgs = [bg1, bg2]
+    bg_idx = 0
     player = Player()
-    encounter_cool = 40
-    finished = False
-    while not finished:
-        WIN.fill((12,12,16))
-        world.draw(WIN, player.x, player.y)
-        WIN.blit(player.img, (player.x*MAP_TILE,player.y*MAP_TILE))
-        draw_text(WIN, f"HP:{player.hp}/{player.maxhp}  BLcheers:{player.inv.get('BLcheers',0)}", (10,8), (255,255,240), smallfont)
-        draw_text(WIN, "Obj: Colère, battrez Khezu! [Déplacez:Flèches]", (180, 8), (210,220,255), smallfont)
-        pygame.display.flip()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT: # NENON PAS BIEN : sys.exit()
-            elif event.type == pygame.KEYDOWN:
-                dx,dy = 0,0
-                if event.key==pygame.K_UP: dy=-1
-                if event.key==pygame.K_DOWN: dy=1
-                if event.key==pygame.K_LEFT: dx=-1
-                if event.key==pygame.K_RIGHT: dx=1
-                if dx or dy:
-                    player.move(dx, dy, world)
-                    encounter_cool = max(12,encounter_cool-1)
-                    if world.is_goal(player.x,player.y):
-                        victory_screen(True)
-                    elif world.is_khezu(player.x,player.y):
-                        res = battle(player, khezu_boss(), khezu_encounter_bg())
-                        if res=="win":
-                            player.wins+=1
-                            draw_text(WIN, "Tu récupères le Colère!", (80, 300), (250,250,100), font)
-                            pygame.display.flip()
-                            pygame.time.wait(900)
-                            victory_screen(True)
-                        else:
-                            victory_screen(False)
-                    elif world.npc_at(player.x,player.y):
-                        npc_dialog(world.npc_at(player.x,player.y))
-                        if player.x==3 and player.y==2:
-                            player.inv["BLcheers"]+=1
-                    elif random_event() and encounter_cool<10:
-                        res = battle(player, random_enemy(), "background2.png")
-                        if res=="lose":
-                            victory_screen(False)
-                        encounter_cool = 44
+    cakes = pygame.sprite.Group()
+    monsters = pygame.sprite.Group()
+    fakemons = pygame.sprite.Group()
+    effects = pygame.sprite.Group()
+    for i in range(10):
+        x, y = random.randint(80, WIDTH-80), random.randint(170, HEIGHT-110)
+        cakes.add(Cake(x, y))
+    start_ticks = pygame.time.get_ticks()
+    elapsed = 0
+    running = True
+    lose = False
+    win = False
+    cake_collected = 0
+    confetti_timer = 0
+    while running:
         clock.tick(FPS)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit(); sys.exit()
+        keys = pygame.key.get_pressed()
+        # Background
+        screen.blit(backgs[bg_idx], (0,0))
+        draw_birthday_banner()
+        # Sprites
+        player.update(keys)
+        cakes.update()
+        monsters.update()
+        fakemons.update()
+        effects.update()
 
-if __name__=="__main__":
+        cakes.draw(screen)
+        monsters.draw(screen)
+        fakemons.draw(screen)
+        screen.blit(player.image, player.rect)
+        # Effects
+        for ef in list(effects):
+            ef.update()
+            if ef.done:
+                effects.remove(ef)
+            else:
+                screen.blit(ef.image, ef.rect)
+
+        # Collision player/cake
+        got_cake = pygame.sprite.spritecollide(player, cakes, True)
+        if got_cake:
+            for c in got_cake:
+                play_sound(snd_collect, 0.32)
+                effects.add(Effect(c.rect.centerx, c.rect.centery))
+                cake_collected += 1
+        # Monster spawn logic
+        if random.random() < 0.018:
+            monsters.add(Monster())
+        if random.random() < 0.01:
+            fakemons.add(FakeMonster())
+
+        # Draw score
+        scoretxt = FONT_SMALL.render(f"Gâteaux: {cake_collected}/{10}", True, (220,235,230))
+        screen.blit(scoretxt, (24,18))
+        # Game over?
+        hit_monster = pygame.sprite.spritecollide(player, monsters, False)
+        elapsed = (pygame.time.get_ticks() - start_ticks) / 1000
+        if hit_monster:
+            lose = True
+            play_sound(lose_music, 0.5)
+            break
+        if cake_collected == 10:
+            win = True
+            play_music(win_music, 0.52, loop=0)
+            break
+        # Animate BG
+        if int(elapsed) % 7 == 0:
+            bg_idx = 1
+        else:
+            bg_idx = 0
+        # Confetti effect if win soon
+        if cake_collected >= 8 and confetti_timer % 6 == 0:
+            x = random.randint(32, WIDTH-32)
+            y = random.randint(32, HEIGHT-32)
+            screen.blit(confetti, (x, y))
+        confetti_timer += 1
+        pygame.display.flip()
+    # End of game
+    pygame.mixer.music.stop()
+    show_credits(win)
+
+while True:
     main()
