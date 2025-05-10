@@ -5,10 +5,9 @@ import os
 
 pygame.mixer.pre_init(44100, -16, 2, 512)
 pygame.init()
-WIDTH, HEIGHT = 800, 600
+WIDTH, HEIGHT = 640, 480
 FPS = 60
 MAP_TILE = 64
-PLAYER_SPEED = 4
 font = pygame.font.SysFont('consolas', 32)
 smallfont = pygame.font.SysFont('consolas', 24)
 clock = pygame.time.Clock()
@@ -94,11 +93,11 @@ def show_intro():
     timer=0
     while running:
         WIN.fill((4, 6, 22))
-        draw_text(WIN, "Khezu Quest: The Lost Colère", (110, 90),(240,30,30))
-        draw_text(WIN, "(appuyez sur Espace pour commencer)", (160, 320), (190,230,255), smallfont)
+        draw_text(WIN, "Khezu Quest: The Lost Colère", (70, 90),(240,30,30))
+        draw_text(WIN, "(appuyez sur Espace pour commencer)", (130, 320), (190,230,255), smallfont)
         pygame.display.flip()
         for ev in pygame.event.get():
-            if ev.type==pygame.QUIT: sys.exit()
+            if ev.type==pygame.QUIT: # NENON PAS BIEN : sys.exit()
             if ev.type==pygame.KEYDOWN and ev.key==pygame.K_SPACE:
                 running=False
         clock.tick(FPS)
@@ -117,23 +116,23 @@ def battle(player, enemy, bg_img):
     msg = []
     while player.hp > 0 and enemy["hp"] > 0:
         WIN.blit(battlebg,(0,0))
-        pygame.draw.rect(WIN,(8,8,60),(20,450,760,120))
-        draw_text(WIN, f"{enemy['name']}  HP:{enemy['hp']}", (480,100), (255,90,90))
-        WIN.blit(pygame.transform.scale(enemy['img'], (140,160)), (520,200))
-        draw_text(WIN, f"Toi  HP:{player.hp}/{player.maxhp}", (50,100), (150,250,110))
-        WIN.blit(player.img, (90,220))
+        pygame.draw.rect(WIN,(8,8,60),(20,450,600,100))
+        draw_text(WIN, f"{enemy['name']}  HP:{enemy['hp']}", (400,80), (255,90,90))
+        WIN.blit(pygame.transform.scale(enemy['img'], (140,160)), (440,160))
+        draw_text(WIN, f"Toi  HP:{player.hp}/{player.maxhp}", (40,80), (150,250,110))
+        WIN.blit(player.img, (70,180))
         if eff_img:
             ix = (pygame.time.get_ticks()//80)%8; iy = (pygame.time.get_ticks()//320)%2
-            WIN.blit(eff_img.subsurface(ix*64,iy*64,64,64), (450,180))
+            WIN.blit(eff_img.subsurface(ix*64,iy*64,64,64), (360,160))
             eff_timer -= 1
             if eff_timer<=0: eff_img = None
         if msg:
-            dialog_box(WIN, msg[-2:] if len(msg)>2 else msg, 470)
+            dialog_box(WIN, msg[-2:] if len(msg)>2 else msg, 430)
         else:
-            draw_text(WIN, "[A]ttaquer   [B]Lcheers    [F]uir", (50, 500), (250,240,220), smallfont)
+            draw_text(WIN, "[A]ttaquer   [B]Lcheers    [F]uir", (40, 450), (250,240,220), smallfont)
         pygame.display.flip()
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: sys.exit()
+            if event.type == pygame.QUIT: # NENON PAS BIEN : sys.exit()
             if event.type == pygame.KEYDOWN and not msg and run_cooldown<=0:
                 if turn=="player":
                     if event.key==pygame.K_a:
@@ -193,7 +192,7 @@ def npc_dialog(npc):
         dialog_box(WIN, [ lines[idx] ])
         pygame.display.flip()
         for e in pygame.event.get():
-            if e.type == pygame.QUIT: sys.exit()
+            if e.type == pygame.QUIT: # NENON PAS BIEN : sys.exit()
             if e.type == pygame.KEYDOWN and e.key == pygame.K_SPACE:
                 idx+=1
                 if idx>=len(lines): running=False
@@ -201,17 +200,17 @@ def npc_dialog(npc):
 
 def victory_screen(win):
     WIN.fill((0,12,32))
-    draw_text(WIN, "VICTOIRE!" if win else "GAME OVER", (290,120), (210,190,250) if win else (255,60,70))
-    draw_text(WIN, "Merci d'avoir joué à Khezu Quest!", (130,220), (250,250,240), smallfont)
-    draw_text(WIN, "Objectif: battre Khezu, récupérer le Colère.", (90,270),(230,255,170), smallfont)
-    draw_text(WIN, "Crédits:", (340,340), (240,240,255), smallfont)
-    draw_text(WIN, "code par tchat, art par ansimuz, BDragon1727", (180, 370), (210,240,255), smallfont)
-    draw_text(WIN, "Appuie sur ESC pour quitter.", (250,470), (180,220,240), smallfont)
+    draw_text(WIN, "VICTOIRE!" if win else "GAME OVER", (240,100), (210,190,250) if win else (255,60,70))
+    draw_text(WIN, "Merci d'avoir joué à Khezu Quest!", (90,180), (250,250,240), smallfont)
+    draw_text(WIN, "Objectif: battre Khezu, récupérer le Colère.", (60,220),(230,255,170), smallfont)
+    draw_text(WIN, "Crédits:", (260,280), (240,240,255), smallfont)
+    draw_text(WIN, "code par tchat, art par ansimuz, BDragon1727", (100, 310), (210,240,255), smallfont)
+    draw_text(WIN, "Appuie sur ESC pour quitter.", (200,400), (180,220,240), smallfont)
     pygame.display.flip()
     while True:
         for e in pygame.event.get():
-            if e.type == pygame.QUIT: sys.exit()
-            if e.type == pygame.KEYDOWN and e.key==pygame.K_ESCAPE: sys.exit()
+            if e.type == pygame.QUIT: # NENON PAS BIEN : sys.exit()
+            if e.type == pygame.KEYDOWN and e.key==pygame.K_ESCAPE: # NENON PAS BIEN : sys.exit()
         clock.tick(30)
 
 def khezu_encounter_bg():
@@ -239,17 +238,17 @@ def main():
         WIN.fill((12,12,16))
         world.draw(WIN, player.x, player.y)
         WIN.blit(player.img, (player.x*MAP_TILE,player.y*MAP_TILE))
-        draw_text(WIN, f"HP:{player.hp}/{player.maxhp}  BLcheers:{player.inv.get('BLcheers',0)}", (16,8), (255,255,240), smallfont)
-        draw_text(WIN, "Obj: Colère, battrez Khezu! [Déplacez:ZQSD]", (220, 8), (210,220,255), smallfont)
+        draw_text(WIN, f"HP:{player.hp}/{player.maxhp}  BLcheers:{player.inv.get('BLcheers',0)}", (10,8), (255,255,240), smallfont)
+        draw_text(WIN, "Obj: Colère, battrez Khezu! [Déplacez:Flèches]", (180, 8), (210,220,255), smallfont)
         pygame.display.flip()
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: sys.exit()
+            if event.type == pygame.QUIT: # NENON PAS BIEN : sys.exit()
             elif event.type == pygame.KEYDOWN:
                 dx,dy = 0,0
-                if event.key==pygame.K_z: dy=-1
-                if event.key==pygame.K_s: dy=1
-                if event.key==pygame.K_q: dx=-1
-                if event.key==pygame.K_d: dx=1
+                if event.key==pygame.K_UP: dy=-1
+                if event.key==pygame.K_DOWN: dy=1
+                if event.key==pygame.K_LEFT: dx=-1
+                if event.key==pygame.K_RIGHT: dx=1
                 if dx or dy:
                     player.move(dx, dy, world)
                     encounter_cool = max(12,encounter_cool-1)
@@ -259,7 +258,7 @@ def main():
                         res = battle(player, khezu_boss(), khezu_encounter_bg())
                         if res=="win":
                             player.wins+=1
-                            draw_text(WIN, "Tu récupères le Colère!", (100, 320), (250,250,100), font)
+                            draw_text(WIN, "Tu récupères le Colère!", (80, 300), (250,250,100), font)
                             pygame.display.flip()
                             pygame.time.wait(900)
                             victory_screen(True)
