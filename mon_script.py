@@ -1,202 +1,280 @@
 import pygame
-import os
 import random
-from twitch import TwitchIRCClient
+import sys
+import os
 
+pygame.mixer.pre_init(44100, -16, 2, 512)
 pygame.init()
-WIDTH, HEIGHT = 960, 540
-WIN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Khezu Shakira Showdown")
-CLOCK = pygame.time.Clock()
+WIDTH, HEIGHT = 800, 600
 FPS = 60
+MAP_TILE = 64
+PLAYER_SPEED = 4
+font = pygame.font.SysFont('consolas', 32)
+smallfont = pygame.font.SysFont('consolas', 24)
+clock = pygame.time.Clock()
+WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Khezu Quest: The Lost Colère")
+ASSET = r"C:\Users\Malkai\Desktop\Streaming\Images"
 
-IMG_PATH = r"C:\Users\Malkai\Desktop\Streaming\Images"
-BG_IMG1 = pygame.image.load(os.path.join(IMG_PATH, "background1.png")).convert()
-BG_IMG2 = pygame.image.load(os.path.join(IMG_PATH, "background2.png")).convert()
-KHEZU_IMG = pygame.image.load(os.path.join(IMG_PATH, "KhezuL.png")).convert_alpha()
-SHAKIRA_IMG = pygame.image.load(os.path.join(IMG_PATH, "BLcheers.gif")).convert_alpha()
-EFFECT_SHEET = pygame.image.load(os.path.join(IMG_PATH, "effetanim03.png")).convert_alpha()
-FONT = pygame.font.SysFont("arial", 32, True)
-BIGFONT = pygame.font.SysFont("arial", 56, True)
+def load_img(fn, alpha=True):
+    img = pygame.image.load(os.path.join(ASSET, fn))
+    return img.convert_alpha() if alpha else img.convert()
 
-def blit_bg(wave):
-    if wave % 2 == 0:
-        WIN.blit(BG_IMG1, (0,0))
-    else:
-        WIN.blit(BG_IMG2, (0,0))
+def load_music(name):
+    pygame.mixer.music.load(os.path.join(ASSET, name))
 
-def load_effect_frames(sheet):
-    frames = []
-    for i in range(sheet.get_width() // 64):
-        fr = pygame.Surface((64,64), pygame.SRCALPHA)
-        fr.blit(sheet, (0,0), (i*64, 0, 64,64))
-        frames.append(fr)
-    return frames
+def play_sound(name):
+    pygame.mixer.Sound(os.path.join(ASSET, name)).play()
 
-def draw_text(surf, text, font, color, x, y, center=False):
-    t = font.render(text, 1, color)
-    if center:
-        rect = t.get_rect(center=(x, y))
-        surf.blit(t, rect)
-    else:
-        surf.blit(t, (x, y))
+def draw_text(surface, text, pos, color=(255,255,255), fnt=font, bg=None):
+    r = fnt.render(text, True, color, bg)
+    surface.blit(r, pos)
 
-class Khezu(pygame.sprite.Sprite):
+def dialog_box(surface, lines, y=HEIGHT-170):
+    pygame.draw.rect(surface, (20,20,40), (30, y, WIDTH-60, 140))
+    pygame.draw.rect(surface, (240,240,255), (32, y+2, WIDTH-64, 136), 2)
+    for i,line in enumerate(lines):
+        draw_text(surface, line, (50, y+15+i*34), (250,250,250), smallfont)
+
+class Map:
     def __init__(self):
-        super().__init__()
-        self.image = KHEZU_IMG
-        self.rect = self.image.get_rect(center=(WIDTH//2, HEIGHT - 100))
-        self.speed = 7
-    def update(self, keys):
-        if keys[pygame.K_LEFT]:
-            self.rect.x -= self.speed
-        if keys[pygame.K_RIGHT]:
-            self.rect.x += self.speed
-        self.rect.x = max(0, min(self.rect.x, WIDTH - self.rect.width))
+        self.bg = load_img("background1.png", alpha=False)
+        self.w, self.h = 10, 7
+        self.tiles = [[0]*self.w for _ in range(self.h)]
+        self.npcs = [
+            {"pos":(3,2), "img":load_img("Pweto.png"), "dialog":
+                [ "Pwetooo ! C'est dangereux par ici.", "Prends cette BLcheers et bonne chance!" ]},
+            {"pos":(7,5), "img":load_img("tigre desssin.png"), "dialog":
+                [ "Le colere a volé mon schling!", "Bats Khezu pour sauver le monde!"]},
+        ]
+        self.khezu_pos = (8,2)
+        self.goal = (9,6)
 
-class ShakiraDrop(pygame.sprite.Sprite):
+    def draw(self, surface, px, py):
+        for y in range(self.h):
+            for x in range(self.w):
+                sx, sy = x*MAP_TILE, y*MAP_TILE
+                surface.blit(self.bg, (sx,sy), area=pygame.Rect(sx%WIDTH, sy%HEIGHT, MAP_TILE, MAP_TILE))
+        for npc in self.npcs:
+            x,y = npc["pos"]
+            surface.blit(pygame.transform.scale(npc["img"], (MAP_TILE,MAP_TILE)), (x*MAP_TILE,y*MAP_TILE))
+        kx,ky = self.khezu_pos
+        surface.blit(pygame.transform.scale(load_img("KhezuL.png"), (MAP_TILE,MAP_TILE)), (kx*MAP_TILE,ky*MAP_TILE))
+        gx,gy = self.goal
+        surface.blit(load_img("colere.png"), (gx*MAP_TILE,gy*MAP_TILE))
+
+    def npc_at(self, x,y):
+        for npc in self.npcs:
+            if (x,y)==npc["pos"]:
+                return npc
+        return None
+
+    def is_khezu(self, x,y):
+        return (x,y)==self.khezu_pos
+    def is_goal(self,x,y):
+        return (x,y)==self.goal
+
+class Player:
     def __init__(self):
-        super().__init__()
-        self.image = SHAKIRA_IMG
-        self.rect = self.image.get_rect(center=(random.randint(50, WIDTH-50), -40))
-        self.speed = random.randint(4,8)
-    def update(self):
-        self.rect.y += self.speed
-        if self.rect.top > HEIGHT:
-            self.kill()
+        self.x, self.y = 1, 1
+        self.hp = 26
+        self.maxhp = 26
+        self.mana = 10
+        self.img = pygame.transform.scale(load_img("toonlink-link.gif"), (MAP_TILE,MAP_TILE))
+        self.inv = {"BLcheers":1}
+        self.wins = 0
 
-class Effect(pygame.sprite.Sprite):
-    def __init__(self, pos, frames):
-        super().__init__()
-        self.frames = frames
-        self.index = 0
-        self.image = frames[0]
-        self.rect = self.image.get_rect(center=pos)
-    def update(self):
-        self.index += 0.6
-        if self.index >= len(self.frames):
-            self.kill()
+    def move(self,dx,dy,mapobj):
+        tx,ty = self.x+dx, self.y+dy
+        if 0<=tx<mapobj.w and 0<=ty<mapobj.h:
+            self.x, self.y = tx, ty
+
+def show_intro():
+    running=True
+    timer=0
+    while running:
+        WIN.fill((4, 6, 22))
+        draw_text(WIN, "Khezu Quest: The Lost Colère", (110, 90),(240,30,30))
+        draw_text(WIN, "(appuyez sur Espace pour commencer)", (160, 320), (190,230,255), smallfont)
+        pygame.display.flip()
+        for ev in pygame.event.get():
+            if ev.type==pygame.QUIT: sys.exit()
+            if ev.type==pygame.KEYDOWN and ev.key==pygame.K_SPACE:
+                running=False
+        clock.tick(FPS)
+
+def random_event():
+    return random.random() < 0.18
+
+def battle(player, enemy, bg_img):
+    battlebg = pygame.transform.scale(load_img(bg_img),(WIDTH,HEIGHT))
+    eff_imgs = [pygame.image.load(os.path.join(ASSET, f"effetanim0{r}.png")) 
+                for r in [3,4,5,6,13,14,15,16,23,24,25,26]]
+    turn = "player"
+    eff_timer = 0
+    eff_img = None
+    run_cooldown = 0
+    msg = []
+    while player.hp > 0 and enemy["hp"] > 0:
+        WIN.blit(battlebg,(0,0))
+        pygame.draw.rect(WIN,(8,8,60),(20,450,760,120))
+        draw_text(WIN, f"{enemy['name']}  HP:{enemy['hp']}", (480,100), (255,90,90))
+        WIN.blit(pygame.transform.scale(enemy['img'], (140,160)), (520,200))
+        draw_text(WIN, f"Toi  HP:{player.hp}/{player.maxhp}", (50,100), (150,250,110))
+        WIN.blit(player.img, (90,220))
+        if eff_img:
+            ix = (pygame.time.get_ticks()//80)%8; iy = (pygame.time.get_ticks()//320)%2
+            WIN.blit(eff_img.subsurface(ix*64,iy*64,64,64), (450,180))
+            eff_timer -= 1
+            if eff_timer<=0: eff_img = None
+        if msg:
+            dialog_box(WIN, msg[-2:] if len(msg)>2 else msg, 470)
         else:
-            self.image = self.frames[int(self.index)]
+            draw_text(WIN, "[A]ttaquer   [B]Lcheers    [F]uir", (50, 500), (250,240,220), smallfont)
+        pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT: sys.exit()
+            if event.type == pygame.KEYDOWN and not msg and run_cooldown<=0:
+                if turn=="player":
+                    if event.key==pygame.K_a:
+                        dmg=random.randint(4,10)
+                        play_sound("schling2.mp3")
+                        enemy['hp']-=dmg
+                        eff_img = pygame.transform.scale(eff_imgs[random.randint(0,11)], (512,128))
+                        eff_timer=8
+                        msg.append(f"Tu frappes {enemy['name']} pour {dmg}!")
+                        turn="enemy"
+                    elif event.key==pygame.K_b and player.inv.get("BLcheers",0)>0:
+                        heal=random.randint(8,15)
+                        play_sound("schling.mp3")
+                        player.hp=min(player.maxhp, player.hp+heal)
+                        player.inv["BLcheers"]-=1
+                        msg.append("BLcheers! Santé+%d"%heal)
+                        turn="enemy"
+                    elif event.key==pygame.K_f:
+                        if random.random()<.68:
+                            msg.append("Tu t'échappes !")
+                            pygame.time.wait(600)
+                            return "run"
+                        else:
+                            msg.append("Pas de bol : tu restes coincé!")
+                            turn = "enemy"
+            elif event.type==pygame.KEYDOWN and msg:
+                msg=[]
+        if turn=="enemy" and not msg and run_cooldown<=0:
+            pygame.time.wait(450)
+            atk = random.choice(["charge", "cris", "lumin"])
+            if atk=="charge":
+                play_sound("schling2.mp3")
+                dmg=random.randint(3,10)
+                player.hp-=dmg
+                msg.append(f"{enemy['name']} charge! -{dmg} HP")
+            elif atk=="cris":
+                play_sound("schling.mp3")
+                dmg=random.randint(1,8)
+                player.hp-=dmg
+                msg.append(f"{enemy['name']} crie! -{dmg} HP")
+            elif atk=="lumin":
+                dmg=max(1,player.hp//6)
+                player.hp-=dmg
+                msg.append(f"{enemy['name']} s'illumine! -{dmg} HP")
+            turn="player"
+        clock.tick(FPS)
+        run_cooldown = max(run_cooldown-1, 0)
+    return "win" if player.hp>0 else "lose"
 
-def spawn_shakira():
-    drop = ShakiraDrop()
-    shakira_sprites.add(drop)
+def npc_dialog(npc):
+    running = True
+    lines = npc["dialog"].copy()
+    idx = 0
+    while running:
+        WIN.fill((8,8,60))
+        WIN.blit(pygame.transform.scale(npc["img"], (200,200)), (WIDTH//2-100, 60))
+        dialog_box(WIN, [ lines[idx] ])
+        pygame.display.flip()
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT: sys.exit()
+            if e.type == pygame.KEYDOWN and e.key == pygame.K_SPACE:
+                idx+=1
+                if idx>=len(lines): running=False
+        clock.tick(FPS)
 
-def spawn_effect(pos):
-    frames = load_effect_frames(EFFECT_SHEET)
-    eff = Effect(pos, frames)
-    effect_sprites.add(eff)
+def victory_screen(win):
+    WIN.fill((0,12,32))
+    draw_text(WIN, "VICTOIRE!" if win else "GAME OVER", (290,120), (210,190,250) if win else (255,60,70))
+    draw_text(WIN, "Merci d'avoir joué à Khezu Quest!", (130,220), (250,250,240), smallfont)
+    draw_text(WIN, "Objectif: battre Khezu, récupérer le Colère.", (90,270),(230,255,170), smallfont)
+    draw_text(WIN, "Crédits:", (340,340), (240,240,255), smallfont)
+    draw_text(WIN, "code par tchat, art par ansimuz, BDragon1727", (180, 370), (210,240,255), smallfont)
+    draw_text(WIN, "Appuie sur ESC pour quitter.", (250,470), (180,220,240), smallfont)
+    pygame.display.flip()
+    while True:
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT: sys.exit()
+            if e.type == pygame.KEYDOWN and e.key==pygame.K_ESCAPE: sys.exit()
+        clock.tick(30)
 
-def reset_game():
-    khezu.rect.center = (WIDTH//2, HEIGHT - 100)
-    for s in shakira_sprites: s.kill()
-    for e in effect_sprites: e.kill()
+def khezu_encounter_bg():
+    return "background2.png"
 
-khezu = Khezu()
-shakira_sprites = pygame.sprite.Group()
-effect_sprites = pygame.sprite.Group()
-score = 0
-lives = 5
-wave = 1
-game_over = False
-win = False
-shakira_queued = False
-client = TwitchIRCClient()
+def random_enemy():
+    if random.random()<0.5:
+        return {"name":"Pweto sauvage","hp":18,"img":load_img("Pweto.png")}
+    else:
+        return {"name":"Ksekos","hp":20,"img":load_img("ksekos.png")}
 
-def on_twitch_message(data):
-    global shakira_queued
-    message = data.get("message","")
-    if "shakira" in message.lower():
-        shakira_queued = True
+def khezu_boss():
+    return {"name":"KHEZU","hp":37,"img":load_img("KhezuL.png")}
 
-client.on("chat", on_twitch_message)
-client.start_background()
+def main():
+    show_intro()
+    load_music("cyberpunk-street.mp3")
+    pygame.mixer.music.play(-1)
+    print("Khezu is Love, Khezu is Life.")
+    world = Map()
+    player = Player()
+    encounter_cool = 40
+    finished = False
+    while not finished:
+        WIN.fill((12,12,16))
+        world.draw(WIN, player.x, player.y)
+        WIN.blit(player.img, (player.x*MAP_TILE,player.y*MAP_TILE))
+        draw_text(WIN, f"HP:{player.hp}/{player.maxhp}  BLcheers:{player.inv.get('BLcheers',0)}", (16,8), (255,255,240), smallfont)
+        draw_text(WIN, "Obj: Colère, battrez Khezu! [Déplacez:ZQSD]", (220, 8), (210,220,255), smallfont)
+        pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT: sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                dx,dy = 0,0
+                if event.key==pygame.K_z: dy=-1
+                if event.key==pygame.K_s: dy=1
+                if event.key==pygame.K_q: dx=-1
+                if event.key==pygame.K_d: dx=1
+                if dx or dy:
+                    player.move(dx, dy, world)
+                    encounter_cool = max(12,encounter_cool-1)
+                    if world.is_goal(player.x,player.y):
+                        victory_screen(True)
+                    elif world.is_khezu(player.x,player.y):
+                        res = battle(player, khezu_boss(), khezu_encounter_bg())
+                        if res=="win":
+                            player.wins+=1
+                            draw_text(WIN, "Tu récupères le Colère!", (100, 320), (250,250,100), font)
+                            pygame.display.flip()
+                            pygame.time.wait(900)
+                            victory_screen(True)
+                        else:
+                            victory_screen(False)
+                    elif world.npc_at(player.x,player.y):
+                        npc_dialog(world.npc_at(player.x,player.y))
+                        if player.x==3 and player.y==2:
+                            player.inv["BLcheers"]+=1
+                    elif random_event() and encounter_cool<10:
+                        res = battle(player, random_enemy(), "background2.png")
+                        if res=="lose":
+                            victory_screen(False)
+                        encounter_cool = 44
+        clock.tick(FPS)
 
-pygame.mixer.music.load(os.path.join(IMG_PATH, "cyberpunk-street.mp3"))
-pygame.mixer.music.play(-1)
-
-intro = True
-while intro:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            client.stop()
-            exit()
-        elif event.type == pygame.KEYDOWN:
-            intro = False
-    WIN.blit(BG_IMG1, (0,0))
-    draw_text(WIN, "Khezu & Shakira Showdown", BIGFONT, (255,50,50), WIDTH//2, HEIGHT//3, center=True)
-    draw_text(WIN, "Déplace Khezu avec ← →   |  Interagis via Twitch chat: shakira", FONT, (255,255,255), WIDTH//2, HEIGHT//2, center=True)
-    draw_text(WIN, "Appuie sur n'importe quelle touche pour commencer!", FONT, (255,255,0), WIDTH//2, HEIGHT*3//4, center=True)
-    pygame.display.update()
-    CLOCK.tick(30)
-
-TIMER = pygame.USEREVENT + 1
-pygame.time.set_timer(TIMER, 1700)
-running = True
-while running:
-    CLOCK.tick(FPS)
-    keys = pygame.key.get_pressed()
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-            client.stop()
-        if event.type == TIMER and not game_over:
-            if random.random() < 0.5:
-                spawn_shakira()
-    if shakira_queued and not game_over:
-        spawn_shakira()
-        shakira_queued = False
-    if not game_over:
-        khezu.update(keys)
-        shakira_sprites.update()
-        effect_sprites.update()
-        
-        hits = pygame.sprite.spritecollide(khezu, shakira_sprites, True)
-        for h in hits:
-            spawn_effect(khezu.rect.center)
-            score += 1
-            print("Khezu est satisfait d'avoir attrapé la Shakira !")
-        for s in list(shakira_sprites):
-            if s.rect.top > HEIGHT:
-                s.kill()
-                lives -= 1
-                print("Khezu a laissé filer une Shakira... Il est triste !")
-                if lives <= 0:
-                    game_over = True
-                    win = False
-        if score >= 15:
-            game_over = True
-            win = True
-            print("VICTOIRE ! KHEZU DOMINE LE MONDE ! SHAKIRA REINE !")
-    blit_bg(wave)
-    effect_sprites.draw(WIN)
-    shakira_sprites.draw(WIN)
-    WIN.blit(khezu.image, khezu.rect)
-    draw_text(WIN, f"SCORE : {score}", FONT, (0,255,128), 28, 6)
-    draw_text(WIN, f"VIES : {lives}", FONT, (255,0,0), WIDTH - 170, 6)
-    pygame.display.update()
-    if game_over:
-        pygame.time.delay(1000)
-        WIN.fill((0,0,0))
-        if win:
-            draw_text(WIN, "Khezu a remporté le Showdown !", BIGFONT, (200,255,80), WIDTH//2, HEIGHT//3, center=True)
-            draw_text(WIN, "Bravo!", FONT, (255,255,255), WIDTH//2, HEIGHT//2, center=True)
-        else:
-            draw_text(WIN, "Khezu a échoué... (mais on aime Khezu)", BIGFONT, (220,100,100), WIDTH//2, HEIGHT//3, center=True)
-            draw_text(WIN, "Retente ta chance sur le tchat Twitch !", FONT, (255,255,255), WIDTH//2, HEIGHT//2, center=True)
-        draw_text(WIN, "Crédits:", FONT, (220,220,220), WIDTH//2, HEIGHT-120, center=True)
-        draw_text(WIN, "Code par tchat", FONT, (255,255,200), WIDTH//2, HEIGHT-90, center=True)
-        draw_text(WIN, "Art par ansimuz, BDragon1727", FONT, (100,255,255), WIDTH//2, HEIGHT-60, center=True)
-        pygame.display.update()
-        pygame.time.delay(4500)
-        score = 0
-        lives = 5
-        wave += 1
-        reset_game()
-        game_over = False
-        win = False
-
-pygame.quit()
-client.stop()
+if __name__=="__main__":
+    main()
