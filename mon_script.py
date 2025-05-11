@@ -20,7 +20,7 @@ HEART = pygame.image.load(os.path.join(IMG_PATH, "BLcheers.gif")).convert_alpha(
 COLERE = pygame.image.load(os.path.join(IMG_PATH, "colere.png")).convert_alpha()
 
 pygame.mixer.music.load(os.path.join(IMG_PATH, "cyberpunk-street.mp3"))
-pygame.mixer.music.set_volume(0.25)
+pygame.mixer.music.set_volume(0.5)
 pygame.mixer.music.play(-1)
 
 SCHLING = pygame.mixer.Sound(os.path.join(IMG_PATH, "schling2.mp3"))
@@ -57,7 +57,7 @@ class Player(pygame.sprite.Sprite):
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, pos):
         super().__init__()
-        self.image = pygame.Surface((10, 5))
+        self.image = pygame.Surface((10, 5), pygame.SRCALPHA)
         self.image.fill((255, 0, 0))
         self.rect = self.image.get_rect(center=pos)
         self.speed = 8
@@ -137,6 +137,7 @@ def main():
     while running:
         dt = clock.tick(FPS)
         timer += dt
+        WINDOW.fill((24, 24, 32))  # Clear the screen each frame
         keys = pygame.key.get_pressed()
         for event in pygame.event.get():
             if event.type == pygame.QUIT: pygame.quit()
