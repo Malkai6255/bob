@@ -1,7 +1,6 @@
 import pygame
-import sys
-import random
 import os
+import random
 
 pygame.init()
 WIDTH, HEIGHT = 800, 600
@@ -21,7 +20,7 @@ HEART = pygame.image.load(os.path.join(IMG_PATH, "BLcheers.gif")).convert_alpha(
 COLERE = pygame.image.load(os.path.join(IMG_PATH, "colere.png")).convert_alpha()
 
 pygame.mixer.music.load(os.path.join(IMG_PATH, "cyberpunk-street.mp3"))
-pygame.mixer.music.set_volume(0.5)
+pygame.mixer.music.set_volume(0.25)
 pygame.mixer.music.play(-1)
 
 SCHLING = pygame.mixer.Sound(os.path.join(IMG_PATH, "schling2.mp3"))
@@ -72,8 +71,8 @@ class KhezuMonster(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
         self.image = KHEZU
-        self.rect = self.image.get_rect(midleft=(WIDTH+random.randint(0,500), random.randint(20, HEIGHT-64)))
-        self.speed = random.randint(3,6)
+        self.rect = self.image.get_rect(midleft=(WIDTH + random.randint(0, 500), random.randint(20, HEIGHT-64)))
+        self.speed = random.randint(3, 6)
 
     def update(self):
         self.rect.x -= self.speed
@@ -81,9 +80,9 @@ class KhezuMonster(pygame.sprite.Sprite):
             self.respawn()
 
     def respawn(self):
-        self.rect.left = WIDTH + random.randint(0,400)
+        self.rect.left = WIDTH + random.randint(0, 400)
         self.rect.y = random.randint(30, HEIGHT-64)
-        self.speed = random.randint(3,6)
+        self.speed = random.randint(3, 6)
 
 class Effect(pygame.sprite.Sprite):
     def __init__(self, pos):
@@ -103,12 +102,12 @@ def draw_hearts(lives):
 
 def gameover_screen(result, score):
     pygame.mixer.music.stop()
-    color = (200,40,40) if result=="perdu" else (40,200,120)
-    WINDOW.fill((24,24,32))
-    txt1 = BIGFONT.render("Khezu a eu raison de toi!" if result=="perdu" else "Tu as survécu!", 1, color)
-    txt2 = FONT.render(f"Score : {score} sec", 1, (222,222,200))
-    txt3 = FONT.render("code par tchat", 1, (200,200,255))
-    txt4 = FONT.render("art par ansimuz, BDragon1727", 1, (150,222,255))
+    color = (200, 40, 40) if result == "perdu" else (40, 200, 120)
+    WINDOW.fill((24, 24, 32))
+    txt1 = BIGFONT.render("Khezu a eu raison de toi!" if result == "perdu" else "Tu as survécu!", 1, color)
+    txt2 = FONT.render(f"Score : {score} sec", 1, (222, 222, 200))
+    txt3 = FONT.render("code par tchat", 1, (200, 200, 255))
+    txt4 = FONT.render("art par ansimuz, BDragon1727", 1, (150, 222, 255))
     WINDOW.blit(txt1, (WIDTH//2-txt1.get_width()//2, 120))
     WINDOW.blit(txt2, (WIDTH//2-txt2.get_width()//2, 180))
     WINDOW.blit(txt3, (WIDTH//2-txt3.get_width()//2, 240))
@@ -140,7 +139,7 @@ def main():
         timer += dt
         keys = pygame.key.get_pressed()
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: pygame.quit(); # NENON PAS BIEN : sys.exit()
+            if event.type == pygame.QUIT: pygame.quit()
 
         player.update(keys)
         khezus.update()
@@ -176,7 +175,7 @@ def main():
         bullets.draw(WINDOW)
         draw_hearts(player.lives)
         effects.draw(WINDOW)
-        txt = FONT.render(f"Survie : {score//1000} sec", 1, (230,230,230))
+        txt = FONT.render(f"Survie : {score//1000} sec", 1, (230, 230, 230))
         WINDOW.blit(txt, (WIDTH-220, 10))
         
         if score//1000 >= 45:
@@ -188,6 +187,5 @@ def main():
         score += dt
 
     pygame.quit()
-    # NENON PAS BIEN : sys.exit()
 
 main()
