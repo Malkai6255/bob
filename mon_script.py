@@ -20,15 +20,6 @@ def load_img(name, colorkey=None):
     if colorkey: img.set_colorkey(colorkey)
     return img
 
-def load_sheet(name):
-    img = load_img(name)
-    frames = []
-    for y in range(0, img.get_height(), 64):
-        for x in range(0, img.get_width(), 64):
-            rect = pygame.Rect(x, y, 64, 64)
-            frames.append(img.subsurface(rect).copy())
-    return frames
-
 bg1 = load_img("background1.png")
 bg2 = load_img("background2.png")
 player_img = load_img("toonlink-link.gif")
@@ -37,7 +28,7 @@ pweto_img = load_img("Pweto.png")
 tigre_img = load_img("tigre desssin.png")
 colere_img = load_img("colere.png")
 
-sheet_fx = load_sheet("effetanim03.png")
+sheet_fx = [load_img(f"effetanim0{i}.png") for i in range(3, 7)]
 
 pygame.mixer.music.load(os.path.join(IMG_DIR, "cyberpunk-street.mp3"))
 pygame.mixer.music.set_volume(0.5)
@@ -109,7 +100,7 @@ class Player:
             self.vel = 0
         for plat in platforms:
             if self.rect.colliderect(plat.rect):
-                if self.vel > 0: # falling
+                if self.vel > 0:
                     self.rect.bottom = plat.rect.top
                     self.vel = 0
                     self.on_ground = True
@@ -121,13 +112,12 @@ class Player:
 
 class Obstacle:
     def __init__(self, img, speed, y=None):
-        self.img = img
+        self.img = pygame.transform.scale(img, (32, 32))
         self.speed = speed
         self.rect = self.img.get_rect()
         self.rect.x = WIDTH + random.randint(0, 200)
         self.rect.y = y if y is not None else random.randint(50, HEIGHT-64)
         self.mask = pygame.mask.from_surface(self.img)
-        self.kind = random.choice(["khezu", "pweto", "tigre", "colere"])
     def update(self):
         self.rect.x -= self.speed
     def draw(self, surface):
@@ -137,7 +127,7 @@ class Obstacle:
 
 class Effect:
     def __init__(self, x, y):
-        self.frames = sheet_fx
+        self.frames = sum((load_sheet(sheet) for sheet in sheet_fx), [])
         self.idx = 0
         self.rect = self.frames[0].get_rect(center=(x, y))
         self.done = False
@@ -217,8 +207,9 @@ while True:
     keys = pygame.key.get_pressed()
     if not game_over and not win_game:
         for ev in pygame.event.get():
-            if ev.type == pygame.QUIT or keys[pygame.K_ESCAPE]:
-                pygame.quit(); # NENON PAS BIEN : sys.exit()
+            if ev.type == pygame.QUIT:
+                pygame.quit()
+                # NENON PAS BIEN : sys.exit()
             if ev.type == SPAWN_OBSTACLE:
                 obstacles.append(make_obstacle())
             if ev.type == SPAWN_PLATFORM:
@@ -235,8 +226,7 @@ while True:
         platforms = [p for p in platforms if not p.offscreen()]
         for ob in obstacles:
             if player.rect.colliderect(ob.rect):
-                offset = (ob.rect.x-player.rect.x, ob.rect.y-player.rect.y)
-                if player.mask.overlap(ob.mask, offset) and player.invincible==0:
+                if player.mask.overlap(ob.mask, (ob.rect.x-player.rect.x, ob.rect.y-player.rect.y)) and player.invincible==0:
                     effects.append(Effect(player.rect.centerx, player.rect.centery))
                     lose_sound.play()
                     game_over = True
@@ -270,10 +260,12 @@ while True:
         game_credits(win_game)
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
-                pygame.quit(); # NENON PAS BIEN : sys.exit()
+                pygame.quit()
+                # NENON PAS BIEN : sys.exit()
             if ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_SPACE:
                     reset()
                     pygame.mixer.music.play(-1)
                 elif ev.key == pygame.K_ESCAPE:
-                    pygame.quit(); # NENON PAS BIEN : sys.exit()
+                    pygame.quit()
+                    # NENON PAS BIEN : sys.exit()
