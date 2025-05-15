@@ -31,7 +31,7 @@ platform_img = load_img('Pweto.png')
 monster_img = load_img('KhezuL.png')
 credit_img = pygame.transform.scale(load_img('colere.png'), (WIDTH, HEIGHT // 2))
 
-music_files = ['Piano relaxant.mp3', 'cyberpunk-street.mp3', 'Piano relaxant2.mp3', 'The moment.mp3']
+music_files = ['Piano relaxant3.mp3', 'cyberpunk-street.mp3', 'Piano relaxant2.mp3', 'The moment.mp3']
 pygame.mixer.music.load(os.path.join(ASSET_PATH, random.choice(music_files)))
 pygame.mixer.music.set_volume(0.5)
 pygame.mixer.music.play(-1)
@@ -166,7 +166,7 @@ def run_game():
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 pygame.quit()
-                sys.exit()
+                # NENON PAS BIEN : sys.exit()
             if not game_over:
                 if ev.type == pygame.KEYDOWN and ev.key == pygame.K_SPACE:
                     if player.y_speed > 0:
@@ -260,7 +260,7 @@ def run_game():
                     win = False
                     bg_y, bg2_y = 0, -background_img.get_height()
                 if keys[pygame.K_ESCAPE]:
-                    pygame.quit(), sys.exit()
+                    pygame.quit(), # NENON PAS BIEN : sys.exit()
         pygame.display.flip()
 
 run_game()
