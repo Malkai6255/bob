@@ -217,7 +217,7 @@ while True:
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 pygame.quit()
-                break
+                # NENON PAS BIEN : sys.exit()
             if ev.type == SPAWN_OBSTACLE:
                 obstacles.append(make_obstacle())
             if ev.type == SPAWN_PLATFORM:
@@ -269,11 +269,11 @@ while True:
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 pygame.quit()
-                break
+                # NENON PAS BIEN : sys.exit()
             if ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_SPACE:
                     reset()
                     pygame.mixer.music.play(-1)
                 elif ev.key == pygame.K_ESCAPE:
                     pygame.quit()
-                    break
+                    # NENON PAS BIEN : sys.exit()
