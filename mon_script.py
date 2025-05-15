@@ -1,210 +1,249 @@
 import pygame
-import random
+import sys
 import os
+import random
 
+pygame.mixer.pre_init(44100, -16, 2, 512)
 pygame.init()
 
-WIDTH, HEIGHT = 400, 600
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Khezu Jump")
-clock = pygame.time.Clock()
+os.environ['SDL_VIDEO_CENTERED'] = '1'
+WIDTH, HEIGHT = 800, 600
 FPS = 60
 
-ASSET_PATH = r"C:\Users\Malkai\Desktop\Streaming\Images"
+win = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Khezu City Dash")
+
+IMG_DIR = r"C:\Users\Malkai\Desktop\Streaming\Images"
 
 def load_img(name, colorkey=None):
-    img = pygame.image.load(os.path.join(ASSET_PATH, name)).convert_alpha()
-    if colorkey is not None:
-        img.set_colorkey(colorkey)
+    img = pygame.image.load(os.path.join(IMG_DIR, name)).convert_alpha()
+    if colorkey: img.set_colorkey(colorkey)
     return img
 
-def load_sound(name):
-    s = pygame.mixer.Sound(os.path.join(ASSET_PATH, name))
-    s.set_volume(0.5)
-    return s
+def load_sheet(name):
+    img = load_img(name)
+    frames = []
+    for y in range(0, img.get_height(), 64):
+        for x in range(0, img.get_width(), 64):
+            rect = pygame.Rect(x, y, 64, 64)
+            frames.append(img.subsurface(rect).copy())
+    return frames
 
-background_img = load_img('background1.png')
-background_img2 = load_img('background2.png')
-player_imgs = [load_img('toonlink-link.gif')]
-platform_img = load_img('Pweto.png')
-monster_img = load_img('KhezuL.png')
-credit_img = pygame.transform.scale(load_img('colere.png'), (WIDTH, HEIGHT // 2))
+bg1 = load_img("background1.png")
+bg2 = load_img("background2.png")
+player_img = load_img("toonlink-link.gif")
+khezu_img = load_img("KhezuL.png")
+pweto_img = load_img("Pweto.png")
+tigre_img = load_img("tigre desssin.png")
+colere_img = load_img("colere.png")
 
-music_files = ['Piano relaxant3.mp3', 'cyberpunk-street.mp3', 'Piano relaxant2.mp3', 'The moment.mp3']
-pygame.mixer.music.load(os.path.join(ASSET_PATH, random.choice(music_files)))
+sheet_fx = load_sheet("effetanim03.png")
+
+pygame.mixer.music.load(os.path.join(IMG_DIR, "cyberpunk-street.mp3"))
+pygame.mixer.music.set_volume(0.5)
 pygame.mixer.music.play(-1)
 
-jump_sfx = load_sound('schling.mp3')
-lose_sfx = load_sound('schling2.mp3')
+schling = pygame.mixer.Sound(os.path.join(IMG_DIR, "schling.mp3"))
+schling.set_volume(0.5)
+lose_sound = pygame.mixer.Sound(os.path.join(IMG_DIR, "schling2.mp3"))
+lose_sound.set_volume(0.5)
+win_sound = pygame.mixer.Sound(os.path.join(IMG_DIR, "Piano relaxant3.mp3"))
+win_sound.set_volume(0.5)
 
-def draw_text(s, size, color, x, y, mid=True):
-    font = pygame.font.SysFont("consolas", size, bold=True)
-    img = font.render(s, True, color)
-    if mid:
-        rect = img.get_rect(center=(x, y))
-        screen.blit(img, rect)
-    else:
-        screen.blit(img, (x,y))
+clock = pygame.time.Clock()
+font = pygame.font.SysFont("Consolas", 32)
+bigfont = pygame.font.SysFont("Consolas", 72)
 
-class Player(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__()
-        self.images = player_imgs
-        self.image = self.images[0]
-        self.rect = self.image.get_rect()
-        self.rect.center = (WIDTH // 2, HEIGHT // 2)
-        self.x_speed = 0
-        self.y_speed = 0
-        self.score = 0
-        self.max_height = self.rect.top
-        self.jump_power = -14
-        self.alive = True
-
+class ParallaxBG:
+    def __init__(self, img, speed):
+        self.img = img
+        self.x1 = 0
+        self.x2 = img.get_width()
+        self.speed = speed
     def update(self):
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_LEFT]:
-            self.x_speed = max(self.x_speed - 0.7, -7)
-        elif keys[pygame.K_RIGHT]:
-            self.x_speed = min(self.x_speed + 0.7, 7)
-        else:
-            self.x_speed *= 0.85
-            if abs(self.x_speed) < 0.5: self.x_speed = 0
-        self.rect.x += int(self.x_speed)
-        self.rect.x = max(0, min(self.rect.x, WIDTH - self.rect.width))
+        self.x1 -= self.speed
+        self.x2 -= self.speed
+        if self.x1 <= -self.img.get_width():
+            self.x1 = self.x2 + self.img.get_width()
+        if self.x2 <= -self.img.get_width():
+            self.x2 = self.x1 + self.img.get_width()
+    def draw(self, surface):
+        surface.blit(self.img, (self.x1, 0))
+        surface.blit(self.img, (self.x2, 0))
 
-        self.y_speed = min(self.y_speed + 0.6, 18)
-        self.rect.y += int(self.y_speed)
+class Player:
+    def __init__(self):
+        self.img = player_img
+        self.rect = self.img.get_rect(center=(100, HEIGHT//2))
+        self.vel = 0
+        self.gravity = 0.7
+        self.jump_str = -12
+        self.mask = pygame.mask.from_surface(self.img)
+        self.invincible = 0
+    def update(self, keys):
+        if keys[pygame.K_SPACE] or keys[pygame.K_UP]:
+            if self.rect.bottom >= HEIGHT:
+                self.vel = self.jump_str
+                schling.play()
+        self.vel += self.gravity
+        self.rect.y += int(self.vel)
+        if self.rect.bottom >= HEIGHT:
+            self.rect.bottom = HEIGHT
+            self.vel = 0
+        if self.rect.top <= 0:
+            self.rect.top = 0
+            self.vel = 0
+        if self.invincible: self.invincible -= 1
+    def draw(self, surface):
+        if self.invincible and (pygame.time.get_ticks()//100)%2:
+            return
+        surface.blit(self.img, self.rect.topleft)
 
-        if self.rect.top < self.max_height:
-            self.score += self.max_height - self.rect.top
-            self.max_height = self.rect.top
+class Obstacle:
+    def __init__(self, img, speed, y=None):
+        self.img = img
+        self.speed = speed
+        self.rect = self.img.get_rect()
+        self.rect.x = WIDTH + random.randint(0, 200)
+        self.rect.y = y if y is not None else random.randint(50, HEIGHT-64)
+        self.mask = pygame.mask.from_surface(self.img)
+        self.kind = random.choice(["khezu", "pweto", "tigre", "colere"])
+    def update(self):
+        self.rect.x -= self.speed
+    def draw(self, surface):
+        surface.blit(self.img, self.rect.topleft)
+    def offscreen(self):
+        return self.rect.right < 0
 
-        if self.rect.top > HEIGHT + 40:
-            self.alive = False
-    
-    def jump(self):
-        self.y_speed = self.jump_power
-        jump_sfx.play()
+class Effect:
+    def __init__(self, x, y):
+        self.frames = sheet_fx
+        self.idx = 0
+        self.rect = self.frames[0].get_rect(center=(x, y))
+        self.done = False
+    def update(self):
+        self.idx += 1
+        if self.idx >= len(self.frames):
+            self.done = True
+    def draw(self, surface):
+        if not self.done:
+            surface.blit(self.frames[self.idx%len(self.frames)], self.rect.topleft)
 
-    def draw(self, surf):
-        surf.blit(self.image, self.rect)
-
-class Platform(pygame.sprite.Sprite):
-    def __init__(self, x, y, breakable=False, monster=False):
-        super().__init__()
-        self.image = platform_img.copy()
-        if monster:
-            self.image = pygame.Surface((platform_img.get_width(), 48), pygame.SRCALPHA)
-            self.image.blit(platform_img, (0, 24))
-            self.image.blit(monster_img, (platform_img.get_width() // 2 - monster_img.get_width() // 2, 0))
-        self.rect = self.image.get_rect(topleft=(x, y))
-        self.breakable = breakable
-        self.monster = monster
-        self.broken = False
-
-    def update(self, camera_scroll):
-        self.rect.y += camera_scroll
-        if self.rect.top > HEIGHT + 20:
-            self.kill()
-
-    def draw(self, surf):
-        surf.blit(self.image, self.rect)
-
-def make_platform_group(starty, num=8):
-    group = pygame.sprite.Group()
-    y = starty
-    for _ in range(num):
-        x = random.randint(10, WIDTH - 80)
-        monster = random.random() < 0.12
-        breakable = not monster and random.random() < 0.13
-        platform = Platform(x, y, breakable, monster)
-        group.add(platform)
-        y -= random.randint(58, 110)
-    return group
+bg_layers = [
+    ParallaxBG(bg1, 3),
+    ParallaxBG(bg2, 1)
+]
 
 player = Player()
-platforms = make_platform_group(HEIGHT - 50, 8)
-all_sprites = pygame.sprite.Group(player, *platforms)
+obstacles = []
+effects = []
 
-bg_y, bg2_y = 0, -background_img.get_height()
+score = 0
+highscore = 0
+game_over = False
+win_game = False
 
-def run_game():
-    global platforms, all_sprites, bg_y, bg2_y, player
-    running = True
+def make_obstacle():
+    img = random.choice([khezu_img, pweto_img, tigre_img, colere_img])
+    return Obstacle(img, 7, None)
+
+def reset():
+    global player, obstacles, effects, score, game_over, win_game
+    player = Player()
+    obstacles.clear()
+    effects.clear()
+    score = 0
     game_over = False
-    win = False
-    timer = 0
-    while running:
-        clock.tick(FPS)
+    win_game = False
+
+def game_credits(win):
+    win.fill((0,0,0))
+    if win:
+        txt = bigfont.render("BRAVO !", 1, (255,255,0))
+    else:
+        txt = bigfont.render("PERDU !", 1, (255,50,50))
+    win.blit(txt, (WIDTH//2-txt.get_width()//2, 100))
+    lines = [
+        "Merci d'avoir joué !",
+        "Code par tchat",
+        "Art par ansimuz, BDragon1727",
+        "Khezu est dans tous nos cœurs.",
+        f"Score: {score}",
+        f"Highscore: {highscore}",
+        "Espace: rejouer    Echap: quitter"
+    ]
+    for i,l in enumerate(lines):
+        ff = font.render(l,1,(230,230,230))
+        win.blit(ff, (WIDTH//2-ff.get_width()//2, 240+40*i))
+    pygame.display.flip()
+
+print("Khezu power! Let's go.")
+obstacles.append(make_obstacle())
+SPAWN = pygame.USEREVENT+1
+pygame.time.set_timer(SPAWN, 1100)
+
+while True:
+    clock.tick(FPS)
+    keys = pygame.key.get_pressed()
+    if not game_over and not win_game:
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT or (keys[pygame.K_ESCAPE]):
+                pygame.quit(); sys.exit()
+            if ev.type == SPAWN:
+                obstacles.append(make_obstacle())
+        for bg in bg_layers:
+            bg.update()
+        player.update(keys)
+        for ob in obstacles:
+            ob.update()
+        for fx in effects:
+            fx.update()
+        effects = [f for f in effects if not f.done]
+        obstacles = [o for o in obstacles if not o.offscreen()]
+        # collision
+        for ob in obstacles:
+            if player.rect.colliderect(ob.rect):
+                offset = (ob.rect.x-player.rect.x, ob.rect.y-player.rect.y)
+                if player.mask.overlap(ob.mask, offset) and player.invincible==0:
+                    effects.append(Effect(player.rect.centerx, player.rect.centery))
+                    lose_sound.play()
+                    game_over = True
+                    if score>highscore: highscore=score
+        # win
+        if score>=30:
+            win_sound.play()
+            win_game = True
+            if score>highscore: highscore=score
+        # scoring
+        for ob in obstacles:
+            if ob.rect.right < player.rect.left and getattr(ob, "counted", False) is False:
+                score += 1
+                ob.counted = True
+        # draw
+        for bg in bg_layers[::-1]:
+            bg.draw(win)
+        player.draw(win)
+        for ob in obstacles:
+            ob.draw(win)
+        for fx in effects:
+            fx.draw(win)
+        # score
+        srf = font.render(f"Score: {score}",1,(240,240,240))
+        win.blit(srf, (20,20))
+        if score>highscore:
+            highscore = score
+        hrf = font.render(f"Highscore: {highscore}",1,(200,200,65))
+        win.blit(hrf, (20,60))
+        pygame.display.flip()
+        win.fill((10,10,30))
+    else:
+        game_credits(win_game)
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
-                pygame.quit()
-        
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_ESCAPE]:
-            running = False
-
-        if not game_over:
-            if player.rect.top <= HEIGHT // 3:
-                cam_scroll = int((HEIGHT // 3 - player.rect.top) * 0.46)
-            else:
-                cam_scroll = 0
-
-            bg_y += cam_scroll
-            bg2_y += cam_scroll
-            if bg_y >= HEIGHT:
-                bg_y = bg2_y - background_img.get_height()
-            if bg2_y >= HEIGHT:
-                bg2_y = bg_y - background_img.get_height()
-            screen.blit(background_img, (0, bg_y))
-            screen.blit(background_img2, (0, bg2_y))
-
-            all_sprites.update(cam_scroll)
-            for p in platforms:
-                if player.y_speed > 0 and player.rect.bottom <= p.rect.top + 8 and \
-                        p.rect.centerx - 10 <= player.rect.centerx <= p.rect.right + 10 and \
-                        abs(player.rect.bottom - p.rect.top) < 21 and not p.broken:
-                    if p.monster:
-                        lose_sfx.play()
-                        player.alive = False
-                    elif p.breakable:
-                        p.broken = True
-                        all_sprites.remove(p)
-                        platforms.remove(p)
-                    else:
-                        player.jump()
-                p.draw(screen)
-            player.draw(screen)
-
-            if player.score > 2400:
-                game_over = True
-                win = True
-                timer = pygame.time.get_ticks()
-            if not player.alive:
-                game_over = True
-                timer = pygame.time.get_ticks()
-
-            draw_text(f"SCORE: {player.score // 10}", 26, (255, 255, 255), WIDTH // 2, 36)
-        else:
-            screen.fill((14, 18, 44))
-            if win:
-                draw_text("VICTOIRE!", 56, (255, 220, 0), WIDTH // 2, HEIGHT // 2 - 86)
-            else:
-                draw_text("PERDU!", 56, (255, 10, 10), WIDTH // 2, HEIGHT // 2 - 86)
-            screen.blit(credit_img, (0, HEIGHT // 2 - 20))
-            draw_text("CODE: tchat", 26, (240, 240, 220), WIDTH // 2, HEIGHT // 2 + 86)
-            draw_text("ART: ansimuz, BDragon1727", 24, (200, 240, 220), WIDTH // 2, HEIGHT // 2 + 140)
-            draw_text("Press [R] pour rejouer ou [ESC] quitter", 20, (255, 255, 255), WIDTH // 2, HEIGHT - 40)
-
-            if pygame.time.get_ticks() - timer > 900:
-                if keys[pygame.K_r]:
-                    player = Player()
-                    platforms = make_platform_group(HEIGHT - 50, 8)
-                    all_sprites = pygame.sprite.Group(player, *platforms)
-                    bg_y, bg2_y = 0, -background_img.get_height()
-                    game_over = False
-                    win = False
-        pygame.display.flip()
-
-run_game()
-pygame.quit()
+                pygame.quit(); sys.exit()
+            if ev.type == pygame.KEYDOWN:
+                if ev.key == pygame.K_SPACE:
+                    reset()
+                    pygame.mixer.music.play(-1)
+                elif ev.key == pygame.K_ESCAPE:
+                    pygame.quit(); sys.exit()
