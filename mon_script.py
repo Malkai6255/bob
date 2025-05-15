@@ -20,15 +20,23 @@ def load_img(name, colorkey=None):
     if colorkey: img.set_colorkey(colorkey)
     return img
 
+def load_sheet(image_file):
+    sprite_sheet = pygame.image.load(os.path.join(IMG_DIR, image_file)).convert_alpha()
+    frames = []
+    for i in range(4):
+        frame = sprite_sheet.subsurface((i * 64, 0, 64, 64))
+        frames.append(frame)
+    return frames
+
 bg1 = load_img("background1.png")
 bg2 = load_img("background2.png")
-player_img = load_img("toonlink-link.gif")
+player_img = pygame.transform.scale(load_img("toonlink-link.gif"), (load_img("toonlink-link.gif").get_width()//2, load_img("toonlink-link.gif").get_height()//2))
 khezu_img = load_img("KhezuL.png")
 pweto_img = load_img("Pweto.png")
 tigre_img = load_img("tigre desssin.png")
 colere_img = load_img("colere.png")
 
-sheet_fx = [load_img(f"effetanim0{i}.png") for i in range(3, 7)]
+sheet_fx = [load_sheet(f"effetanim{i}.png") for i in range(3, 7)]
 
 pygame.mixer.music.load(os.path.join(IMG_DIR, "cyberpunk-street.mp3"))
 pygame.mixer.music.set_volume(0.5)
@@ -209,7 +217,7 @@ while True:
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 pygame.quit()
-                # NENON PAS BIEN : sys.exit()
+                break
             if ev.type == SPAWN_OBSTACLE:
                 obstacles.append(make_obstacle())
             if ev.type == SPAWN_PLATFORM:
@@ -261,11 +269,11 @@ while True:
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 pygame.quit()
-                # NENON PAS BIEN : sys.exit()
+                break
             if ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_SPACE:
                     reset()
                     pygame.mixer.music.play(-1)
                 elif ev.key == pygame.K_ESCAPE:
                     pygame.quit()
-                    # NENON PAS BIEN : sys.exit()
+                    break
